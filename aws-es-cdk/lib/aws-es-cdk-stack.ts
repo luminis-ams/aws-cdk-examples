@@ -223,7 +223,7 @@ export class AwsEsCdkStack extends cdk.Stack {
                 physicalResourceId: PhysicalResourceId.of(`ClientId-${applicationPrefix}`)
             }
         });
-        userPoolClients.node.addDependency(esDomain); // TODO Not sure if and why we need this
+        userPoolClients.node.addDependency(esDomain);
 
         const clientId = userPoolClients.getResponseField('UserPoolClients.0.ClientId');
         const providerName = `cognito-idp.${this.region}.amazonaws.com/${userPool.userPoolId}:${clientId}`
