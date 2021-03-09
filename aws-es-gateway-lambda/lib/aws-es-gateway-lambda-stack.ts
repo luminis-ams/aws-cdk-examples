@@ -6,13 +6,13 @@ export class AwsEsGatewayLambdaStack extends cdk.Stack {
     constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
         super(scope, id, props);
 
-        const search = new lambda.Function(this, 'SearchHandler', {
+        const search = new lambda.Function(this, 'LambdaSearchHandler', {
             runtime: lambda.Runtime.NODEJS_10_X,
             code: lambda.Code.fromAsset('lambda'),
             handler: 'search.handler'
         });
 
-        let gateway = new apigw.LambdaRestApi(this, 'Endpoint', {
+        let gateway = new apigw.LambdaRestApi(this, 'SearchLambdaEndpoint', {
             handler: search
         });
     }
