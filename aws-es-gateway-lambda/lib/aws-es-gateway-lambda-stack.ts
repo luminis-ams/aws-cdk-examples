@@ -1,7 +1,7 @@
 import * as cdk from '@aws-cdk/core';
 import * as lambda from '@aws-cdk/aws-lambda';
 import * as apigw from '@aws-cdk/aws-apigateway';
-import {ManagedPolicy, Role, ServicePrincipal} from "@aws-cdk/aws-iam";
+import {Role} from "@aws-cdk/aws-iam";
 
 export class AwsEsGatewayLambdaStack extends cdk.Stack {
     constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
