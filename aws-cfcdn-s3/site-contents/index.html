@@ -1,9 +1,38 @@
 <html>
 <head>
     <title>CDK sample</title>
+    <script language="JavaScript">
+        async function searchForResults(searchTerm) {
+            let response = await fetch('https://gxjpfjttea.execute-api.eu-west-1.amazonaws.com/prod/?q=' + encodeURI(searchTerm));
+            let data = await response.json();
+            return data;
+        }
+
+        function buttonClick() {
+            let searchTerm = document.getElementById("search-input").value;
+            searchForResults(searchTerm).then(data => {
+                console.log(data);
+                let element = document.getElementById("results");
+                let toWrite = "<table>";
+                data.hits.hits.forEach(hit => {
+                    toWrite += "<tr><td><img src='" + hit._source.image_src + "'/></td><td>" + hit._source.description +"</td></tr>";
+                });
+                toWrite += "</table>";
+                element.innerHTML = toWrite;
+            });
+        }
+    </script>
 </head>
 <body>
-<h1>Welcome to this CDK page</h1>
-<p>En dit is dan om te kijken of we een update binnen krijgen of dat we dat anders moeten doen</p>
+<img src="./images/Luminis-logo-RGB.png" alt="Luminis Logo">
+<h1>This is a basic page to test CDK with CLoud Front</h1>
+<p>You can enter a search term (a color for example) and watch the hits show up</p>
+<div>
+    <label title="Search for">
+        <input type="text" id="search-input"/>
+    </label>
+    <button type="button" onclick="buttonClick()">Search</button>
+</div>
+<div id="results"></div>
 </body>
 </html>
