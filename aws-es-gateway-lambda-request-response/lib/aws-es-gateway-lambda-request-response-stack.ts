@@ -24,14 +24,10 @@ export class AwsEsGatewayLambdaRequestResponseStack extends cdk.Stack {
         const api = new apigateway.RestApi(this, 'byron-aws-es-gateway-lambda', {});
         const resource = api.root.addResource('v1');
 
-        let requestTemplate = fs.readFileSync(path.resolve(__dirname, 'templates/request_template_mapping.vm'), 'utf8')
         let responseTemplate = fs.readFileSync(path.resolve(__dirname, 'templates/response_template_mapping.vm'), 'utf8')
 
         const integration = new apigateway.LambdaIntegration(search, {
             proxy: false,
-            // requestTemplates: {
-            //     'application/json': requestTemplate
-            // },
             integrationResponses: [
                 {
                     statusCode: "200",
@@ -69,7 +65,7 @@ export class AwsEsGatewayLambdaRequestResponseStack extends cdk.Stack {
                     },
                     filters: {
                         type: JsonSchemaType.OBJECT,
-                        properties : {
+                        properties: {
                             name: {
                                 type: JsonSchemaType.STRING
                             },
