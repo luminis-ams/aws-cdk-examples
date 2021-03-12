@@ -22,12 +22,12 @@
     "facets": [
     #foreach($elem in $inputRoot.aggregations.entrySet())
       {
-        "name: "$elem.key",
+        "name": "$elem.key"  ,
         "items": [
         #foreach($val in $elem.value.buckets)
           {
             "label": "$val.key",
-            "value: "$val.key",
+            "value": "$val.key",
             "count": $val.doc_count,
             "status": "CLICKABLE"
           }#if($foreach.hasNext),#end
