@@ -1,0 +1,48 @@
+#set($inputRoot = $util.parseJson($input.path('$')))
+{
+    "totalHits" : "$inputRoot.hits.total.value",
+    "foundProducts": [
+    #foreach($elem in $inputRoot.hits.hits)
+    #set($source = $elem.get('_source'))
+      {
+        "id": "$source.id",
+        "title": "$source.title",
+        "description": "$source.description",
+        "image_src": "$source.image_src",
+        "tags": "$source.tags",
+        "type": "$source.type",
+        "vendor": "$source.vendor",
+        "color": "$source.color",
+        "material": "$source.material",
+        "numberOfRatings" : $source.numberOfRatings,
+        "price" : $source.price
+      }#if($foreach.hasNext),#end
+    #end
+    ],
+    "facets": [
+    #foreach($elem in $inputRoot.aggregations.entrySet())
+      {
+        "name: $elem.key,
+        "items": [
+        #foreach($val in $elem.value.buckets)
+          {
+            "label": $val.key,
+            "value: $val.key,
+            "count": $val.doc_count,
+            "status": "CLICKABLE"
+          }#if($foreach.hasNext),#end
+        #end
+        ]
+      }#if($foreach.hasNext),#end
+    #end
+    ],
+    "suggestions": [
+        #foreach($elem in $inputRoot.suggest.entrySet())
+            #foreach($val in $elem.value)
+                #foreach($opt in $val.options)
+        "$opt.text"
+                #end
+            #end
+        #end
+    ]
+}

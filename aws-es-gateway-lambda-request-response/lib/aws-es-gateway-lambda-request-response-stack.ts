@@ -4,6 +4,9 @@ import * as apigateway from '@aws-cdk/aws-apigateway';
 import {JsonSchemaType, JsonSchemaVersion} from '@aws-cdk/aws-apigateway';
 import {Role} from "@aws-cdk/aws-iam";
 
+const fs = require('fs')
+const path = require('path')
+
 export class AwsEsGatewayLambdaRequestResponseStack extends cdk.Stack {
     constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
         super(scope, id, props);
@@ -21,36 +24,19 @@ export class AwsEsGatewayLambdaRequestResponseStack extends cdk.Stack {
         const api = new apigateway.RestApi(this, 'byron-aws-es-gateway-lambda', {});
         const resource = api.root.addResource('v1');
 
-        let responseTemplate = '#set($inputRoot = $input.path(\'$\'))\n' +
-            '{\n' +
-            '  "totalHits" : "$inputRoot.took",\n' +
-            '  "products": [\n' +
-            '#foreach($elem in $inputRoot.hits.hits)\n' +
-            '    {\n' +
-            '      "title": "$elem.title"\n' +
-            '    }#if($foreach.hasNext),#end\n' +
-            '#end\n' +
-            '  ],\n' +
-            '  "body": $inputRoot\n' +
-            '}'
+        let requestTemplate = fs.readFileSync(path.resolve(__dirname, 'templates/request_template_mapping.vm'), 'utf8')
+        let responseTemplate = fs.readFileSync(path.resolve(__dirname, 'templates/response_template_mapping.vm'), 'utf8')
 
         const integration = new apigateway.LambdaIntegration(search, {
             proxy: false,
-            requestTemplates: {
-                'application/json': "" +
-                    "#set($inputRoot = $input.path('$')) \n" +
-                    "{\n" +
-                    "    \"searchString\":\"$inputRoot.searchString\",\n" +
-                    "    \"page\":\"$inputRoot.page\",\n" +
-                    "    \"size\":\"$inputRoot.size\"\n" +
-                    "}"
-            },
+            // requestTemplates: {
+            //     'application/json': requestTemplate
+            // },
             integrationResponses: [
                 {
                     statusCode: "200",
                     responseTemplates: {
                         'application/json': responseTemplate
-
                     }
                 }
             ]
@@ -71,34 +57,27 @@ export class AwsEsGatewayLambdaRequestResponseStack extends cdk.Stack {
                     },
                     size: {
                         type: JsonSchemaType.INTEGER
-                    }
-                }
-
-            }
-        });
-
-        let responseModel = api.addModel('SearchResponse', {
-            description: "Default SearchResponse",
-            modelName: "SearchResponse",
-            contentType: "application/json",
-            schema: {
-                schema: JsonSchemaVersion.DRAFT7,
-                title: "ResponeModel",
-                type: JsonSchemaType.OBJECT,
-                properties: {
-                    took: {
-                        type: JsonSchemaType.INTEGER
                     },
-                    totalHits: {
-                        type: JsonSchemaType.INTEGER
+                    sort: {
+                        type: JsonSchemaType.STRING
                     },
-                    products: {
+                    userId: {
+                        type: JsonSchemaType.STRING
+                    },
+                    variant: {
+                        type: JsonSchemaType.STRING
+                    },
+                    filters: {
                         type: JsonSchemaType.OBJECT,
-                        properties: {
-                            title: {
+                        properties : {
+                            name: {
+                                type: JsonSchemaType.STRING
+                            },
+                            value: {
                                 type: JsonSchemaType.STRING
                             }
                         }
+
                     }
                 }
             }
@@ -120,12 +99,8 @@ export class AwsEsGatewayLambdaRequestResponseStack extends cdk.Stack {
                         'method.response.header.Content-Type': true,
                         'method.response.header.Access-Control-Allow-Origin': true,
                         'method.response.header.Access-Control-Allow-Credentials': true
-                    },
-                    responseModels: {
-                        "application/json": responseModel
                     }
                 }
-
             ]
         })
 
