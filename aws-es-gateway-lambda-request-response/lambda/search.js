@@ -78,15 +78,7 @@ exports.handler = async function (event) {
                 "byVendor": {
                     terms: {
                         field: "vendor",
-                        size: 10,
-                        order: [
-                            {
-                                "_count": "desc"
-                            },
-                            {
-                                "_key": "asc"
-                            }
-                        ]
+                        size: 10
                     }
                 }
             }
