@@ -1,33 +1,45 @@
 {
-  "name": "aws-cfcdn-s3",
+  "name": "search-app",
   "version": "0.1.0",
-  "bin": {
-    "aws-cfcdn-s3": "bin/aws-cfcdn-s3.js"
+  "private": true,
+  "dependencies": {
+    "@testing-library/jest-dom": "^5.11.9",
+    "@testing-library/react": "^11.2.5",
+    "@testing-library/user-event": "^12.8.3",
+    "@types/jest": "^26.0.20",
+    "@types/node": "^12.20.5",
+    "@types/react": "^17.0.3",
+    "@types/react-dom": "^17.0.2",
+    "axios": "^0.21.1",
+    "react": "^17.0.1",
+    "react-dom": "^17.0.1",
+    "react-query": "^3.12.1",
+    "react-scripts": "4.0.3",
+    "typescript": "^4.2.3",
+    "web-vitals": "^1.1.0"
   },
   "scripts": {
-    "build": "tsc",
-    "watch": "tsc -w",
-    "test": "jest",
-    "cdk": "cdk"
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
   },
-  "devDependencies": {
-    "@aws-cdk/assert": "1.91.0",
-    "@types/jest": "^26.0.10",
-    "@types/node": "10.17.27",
-    "jest": "^26.4.2",
-    "ts-jest": "^26.2.0",
-    "aws-cdk": "1.91.0",
-    "ts-node": "^9.0.0",
-    "typescript": "~3.9.7"
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
   },
-  "dependencies": {
-    "@aws-cdk/aws-certificatemanager": "^1.92.0",
-    "@aws-cdk/aws-cloudfront": "^1.92.0",
-    "@aws-cdk/aws-cloudfront-origins": "^1.92.0",
-    "@aws-cdk/aws-route53": "^1.92.0",
-    "@aws-cdk/aws-s3": "^1.92.0",
-    "@aws-cdk/aws-s3-deployment": "^1.92.0",
-    "@aws-cdk/core": "1.91.0",
-    "source-map-support": "^0.5.16"
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
   }
 }

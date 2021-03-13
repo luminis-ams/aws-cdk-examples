@@ -22,6 +22,8 @@
   },
   "dependencies": {
     "@aws-cdk/aws-apigateway": "^1.92.0",
+    "@aws-cdk/aws-certificatemanager": "^1.93.0",
+    "@aws-cdk/aws-cloudfront": "^1.93.0",
     "@aws-cdk/aws-lambda": "^1.92.0",
     "@aws-cdk/core": "1.92.0",
     "aws-sdk": "^2.858.0",

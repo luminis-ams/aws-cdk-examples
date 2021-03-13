@@ -18,7 +18,10 @@ export class AwsEsGatewayLambdaStack extends cdk.Stack {
         });
 
         let gateway = new apigw.LambdaRestApi(this, 'SearchLambdaEndpoint', {
-            handler: search
+            handler: search,
+            defaultCorsPreflightOptions: {
+                allowOrigins:["https://jettro.cloudsearchsolutions.com"],
+            }
         });
     }
 }
