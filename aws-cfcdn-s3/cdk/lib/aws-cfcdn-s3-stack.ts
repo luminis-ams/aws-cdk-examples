@@ -1,6 +1,6 @@
 import * as cdk from '@aws-cdk/core';
 import {
-    AllowedMethods,
+    AllowedMethods, CachePolicy, CacheQueryStringBehavior,
     Distribution,
     OriginRequestPolicy,
     PriceClass,
@@ -10,6 +10,7 @@ import {Bucket} from "@aws-cdk/aws-s3";
 import {HttpOrigin, S3Origin} from "@aws-cdk/aws-cloudfront-origins";
 import {BucketDeployment, Source} from "@aws-cdk/aws-s3-deployment";
 import {Certificate} from "@aws-cdk/aws-certificatemanager";
+import {Duration} from "@aws-cdk/core";
 
 export class AwsCfcdnS3Stack extends cdk.Stack {
     constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
@@ -36,6 +37,16 @@ export class AwsCfcdnS3Stack extends cdk.Stack {
                     viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
                     allowedMethods: AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
                     originRequestPolicy: OriginRequestPolicy.CORS_CUSTOM_ORIGIN,
+                    cachePolicy: new CachePolicy(this, 'enableQParamCachePolicy', {
+                        cachePolicyName: 'Q_Param_Cache_Policy',
+                        comment: 'Adds the q parameter to the cache key',
+                        minTtl: Duration.seconds(1),
+                        maxTtl: Duration.seconds(31536000),
+                        defaultTtl: Duration.seconds(86400),
+                        enableAcceptEncodingBrotli: true,
+                        enableAcceptEncodingGzip: true,
+                        queryStringBehavior: CacheQueryStringBehavior.allowList("q"),
+                    }),
                 }
             },
             priceClass: PriceClass.PRICE_CLASS_100,

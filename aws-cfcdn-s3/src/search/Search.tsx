@@ -2,7 +2,7 @@ import React, {ChangeEvent, Component} from 'react';
 import axios from 'axios';
 
 const fetchSearchByTerm = async (term: string): Promise<response> => {
-    const { data } = await axios.get(`https://qke0rtmpb0.execute-api.eu-west-1.amazonaws.com/prod/?q=${term}`)
+    const { data } = await axios.get(`/prod/?q=${term}`)
     return data;
 };
 
