@@ -155,7 +155,7 @@ export class AwsEsCdkStack extends cdk.Stack {
             enableVersionUpgrade: true,
             capacity: {
                 dataNodes: 1,
-                dataNodeInstanceType: "r5.large.elasticsearch",
+                dataNodeInstanceType: "t2.small.elasticsearch",
             },
             ebs: {
                 volumeSize: 10
