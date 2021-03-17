@@ -10,4 +10,4 @@ I removed a few parts that we not necessary to explain what I wanted in a blog. 
 ## Resources
 https://dev.to/evnz/single-cloudfront-distribution-for-s3-web-app-and-api-gateway-15c3
 https://aws.amazon.com/premiumsupport/knowledge-center/no-access-control-allow-origin-error/
-curl -H "origin: jettro.cloudsearchsolutions.com" -v "https://jettro.cloudsearchsolutions.com/prod/q=blauw"
+curl -H "origin: jettro.cloudsearchsolutions.com" -v "https://jettro.cloudsearchsolutions.com/prod/?q=blauw"

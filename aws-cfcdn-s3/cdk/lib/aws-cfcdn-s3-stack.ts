@@ -1,6 +1,6 @@
 import * as cdk from '@aws-cdk/core';
 import {
-    AllowedMethods, CachePolicy, CacheQueryStringBehavior,
+    AllowedMethods, CacheHeaderBehavior, CachePolicy, CacheQueryStringBehavior,
     Distribution,
     OriginRequestPolicy,
     PriceClass,
@@ -46,6 +46,10 @@ export class AwsCfcdnS3Stack extends cdk.Stack {
                         enableAcceptEncodingBrotli: true,
                         enableAcceptEncodingGzip: true,
                         queryStringBehavior: CacheQueryStringBehavior.allowList("q"),
+                        headerBehavior: CacheHeaderBehavior.allowList(
+                            "Access-Control-Request-Headers",
+                            "Access-Control-Request-Method",
+                            "Origin"),
                     }),
                 }
             },

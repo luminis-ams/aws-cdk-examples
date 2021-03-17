@@ -1,4 +1,4 @@
-import React, {ChangeEvent, Component} from 'react';
+import React, {ChangeEvent, Component, KeyboardEventHandler} from 'react';
 import axios from 'axios';
 
 const fetchSearchByTerm = async (term: string): Promise<response> => {
@@ -53,12 +53,18 @@ class Search extends Component<{}, ISearchState> {
         this.setState({ searchTerm: target.value });
     };
 
+    handleKeyPress = (e: any) => {
+        if (e.key === "Enter") {
+            this.doSearch();
+        }
+    };
+
     render() {
         return (<div>
             <img src="Luminis-logo-RGB.png" alt="Luminis logo"/>
             <p>Welcome to this very basic demo, enter a color in the search box and push the button</p>
             <div>
-                <input id="search_input" onChange={this.handleChangeTerm}/>
+                <input id="search_input" onChange={this.handleChangeTerm} onKeyPress={this.handleKeyPress}/>
                 <button onClick={this.doSearch}>Search</button>
             </div>
             <table>
