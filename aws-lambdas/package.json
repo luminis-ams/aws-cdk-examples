@@ -22,7 +22,10 @@
   },
   "dependencies": {
     "@aws-cdk/aws-lambda": "^1.94.1",
+    "@aws-cdk/aws-sns": "^1.94.1",
+    "@aws-cdk/aws-sns-subscriptions": "^1.94.1",
     "@aws-cdk/core": "1.94.1",
+    "@aws-sdk/client-sns": "^3.9.0",
     "source-map-support": "^0.5.16"
   }
 }
