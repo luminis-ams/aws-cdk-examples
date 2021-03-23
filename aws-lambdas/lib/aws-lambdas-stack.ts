@@ -2,6 +2,7 @@ import * as cdk from '@aws-cdk/core';
 import * as lambda from '@aws-cdk/aws-lambda';
 import * as sns from '@aws-cdk/aws-sns';
 import * as subs from '@aws-cdk/aws-sns-subscriptions';
+import * as apigateway from '@aws-cdk/aws-apigateway';
 
 import {CfnOutput} from "@aws-cdk/core";
 
@@ -46,6 +47,22 @@ export class AwsLambdasStack extends cdk.Stack {
         new CfnOutput(this, 'SendMessageLambdaOutput', {
             description: "Call the lambda that just sends a message to the SNS Topic",
             value: sendToSNSLambda.functionName,
+        });
+
+        const gatewayLambda = new lambda.Function(this, 'GatewaySendToSNSLambda', {
+            runtime: lambda.Runtime.NODEJS_12_X,
+            code: lambda.Code.fromAsset('lambda-gateway'),
+            handler: 'index.handler',
+            environment: {
+                SNS_TOPIC_ARN: snsTopic.topicArn,
+                REGION: this.region,
+            }
+        });
+
+        snsTopic.grantPublish(gatewayLambda);
+
+        new apigateway.LambdaRestApi(this, 'JettroLambdaApi', {
+            handler: gatewayLambda,
         });
     }
 }

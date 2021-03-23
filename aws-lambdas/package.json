@@ -21,6 +21,7 @@
     "typescript": "~3.9.7"
   },
   "dependencies": {
+    "@aws-cdk/aws-apigateway": "^1.94.1",
     "@aws-cdk/aws-lambda": "^1.94.1",
     "@aws-cdk/aws-sns": "^1.94.1",
     "@aws-cdk/aws-sns-subscriptions": "^1.94.1",
