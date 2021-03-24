@@ -34,7 +34,7 @@ export class AwsLambdasStack extends cdk.Stack {
 
         const sendToSNSLambda = new lambda.Function(this, 'SendToSNSLambda', {
             runtime: lambda.Runtime.NODEJS_12_X,
-            code: lambda.Code.fromAsset('lambda'),
+            code: lambda.Code.fromAsset('./lambdas/lambda-send-message'),
             handler: 'send-message.handler',
             environment: {
                 SNS_TOPIC_ARN: snsTopic.topicArn,
@@ -49,14 +49,20 @@ export class AwsLambdasStack extends cdk.Stack {
             value: sendToSNSLambda.functionName,
         });
 
+        const responseLayer = new lambda.LayerVersion(this, "ResponseLayer", {
+            code: lambda.Code.fromAsset("./layers/response-layer"),
+            compatibleRuntimes: [lambda.Runtime.NODEJS_12_X],
+        });
+
         const gatewayLambda = new lambda.Function(this, 'GatewaySendToSNSLambda', {
             runtime: lambda.Runtime.NODEJS_12_X,
-            code: lambda.Code.fromAsset('lambda-gateway'),
+            code: lambda.Code.fromAsset('./lambdas/lambda-gateway'),
             handler: 'index.handler',
             environment: {
                 SNS_TOPIC_ARN: snsTopic.topicArn,
                 REGION: this.region,
-            }
+            },
+            layers:[responseLayer],
         });
 
         snsTopic.grantPublish(gatewayLambda);

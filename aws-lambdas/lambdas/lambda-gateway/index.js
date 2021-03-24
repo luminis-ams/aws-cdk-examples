@@ -1,5 +1,6 @@
 const AWS = require('aws-sdk');
 const { SNSClient, PublishCommand } = require("@aws-sdk/client-sns");
+const { createResponse } = require("/opt/nodejs/response-layer/responses");
 
 exports.handler = async (event) => {
     const sns = new SNSClient(process.env.REGION)
@@ -12,14 +13,5 @@ exports.handler = async (event) => {
 
     await sns.send(publishCommand);
 
-    return {
-        "isBase64Encoded": false,
-        "statusCode": 200,
-        "headers": {
-            "Access-Control-Allow-Origin": '*'
-        },
-        "body": JSON.stringify({
-            "message": "OK"
-        })
-    };
+    return createResponse("Fine by me");
 }
