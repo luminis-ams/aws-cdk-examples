@@ -97,24 +97,6 @@ export class AwsStepFunctionsStack extends cdk.Stack {
 
         const api = new apigateway.RestApi(this, "JettroStepFunctionsAPI");
 
-        let requestModel = api.addModel('PostMessage', {
-            description: "Default Post Message",
-            modelName: "PostMessage",
-            contentType: "application/json",
-            schema: {
-                schema: apigateway.JsonSchemaVersion.DRAFT7,
-                properties: {
-                    message: {
-                        type: apigateway.JsonSchemaType.STRING
-                    },
-                    sender: {
-                        type: apigateway.JsonSchemaType.STRING
-                    }
-                }
-            }
-        });
-
-
         api.root.addMethod(
             "POST",
             new apigateway.AwsIntegration({
@@ -130,20 +112,15 @@ export class AwsStepFunctionsStack extends cdk.Stack {
                     ],
                     requestTemplates: {
                         "application/json": `
-                            #set($inputRoot = $input.path('$'))
-                            {
-                                "message": "$inputRoot.message",
-                                "sender": "$inputRoot.sender",
-                                "stateMachineArn": "${stateMachine.stateMachineArn}"
-                            }`,
+                        {
+                            "input": "$util.escapeJavaScript($input.json('$'))",
+                            "stateMachineArn": "${stateMachine.stateMachineArn}"
+                        }`,
                     },
                 },
             }),
             {
                 methodResponses: [{statusCode: "200"}],
-                requestModels: {
-                    "application/json": requestModel
-                },
             }
         );
     }

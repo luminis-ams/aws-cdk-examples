@@ -8,6 +8,6 @@ POST https://q4svenybmg.execute-api.eu-west-1.amazonaws.com/prod
 Content-Type: application/json
 
 {
-  "message": "Hello from API Gateway using http client",
+  "message": "Hello bad from API Gateway using http client",
   "sender": "Jettro"
 }
