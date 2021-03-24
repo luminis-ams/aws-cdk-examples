@@ -1,0 +1,13 @@
+### Send POST request with json body
+GET https://9r53crq9cl.execute-api.eu-west-1.amazonaws.com/prod
+Content-Type: application/json
+
+###
+
+POST https://q4svenybmg.execute-api.eu-west-1.amazonaws.com/prod
+Content-Type: application/json
+
+{
+  "message": "Hello from API Gateway using http client",
+  "sender": "Jettro"
+}

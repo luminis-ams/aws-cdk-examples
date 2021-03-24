@@ -1,5 +1,5 @@
 ### Send POST request with json body
-POST https://943pdmvxn7.execute-api.eu-west-1.amazonaws.com/prod/
+POST https://o6yrsz71n0.execute-api.eu-west-1.amazonaws.com/prod/
 Content-Type: application/json
 
 {
