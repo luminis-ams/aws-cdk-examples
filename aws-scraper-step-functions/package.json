@@ -1,8 +1,8 @@
 {
-  "name": "aws-step-functions",
+  "name": "aws-scraper-step-functions",
   "version": "0.1.0",
   "bin": {
-    "aws-step-functions": "bin/aws-step-functions.js"
+    "aws-scraper-step-functions": "bin/aws-scraper-step-functions.js"
   },
   "scripts": {
     "build": "tsc",
@@ -11,24 +11,24 @@
     "cdk": "cdk"
   },
   "devDependencies": {
-    "@aws-cdk/assert": "1.94.1",
     "@types/jest": "^26.0.10",
+    "@types/lodash": "^4.14.168",
     "@types/node": "10.17.27",
-    "aws-cdk": "1.91.0",
     "jest": "^26.4.2",
     "ts-jest": "^26.2.0",
     "ts-node": "^9.0.0",
     "typescript": "~3.9.7"
   },
   "dependencies": {
-    "@aws-cdk/aws-apigateway": "^1.94.1",
-    "@aws-cdk/aws-iam": "^1.94.1",
-    "@aws-cdk/aws-lambda": "^1.94.1",
-    "@aws-cdk/aws-sns": "^1.94.1",
-    "@aws-cdk/aws-sns-subscriptions": "^1.94.1",
+    "@aws-cdk/assert": "^1.94.1",
+    "@aws-cdk/aws-dynamodb": "^1.94.1",
     "@aws-cdk/aws-stepfunctions": "^1.94.1",
     "@aws-cdk/aws-stepfunctions-tasks": "^1.94.1",
-    "@aws-cdk/core": "^1.94.1",
-    "source-map-support": "^0.5.16"
+    "@aws-cdk/core": "1.94.1",
+    "aws-sdk": "^2.866.0",
+    "lodash": "^4.17.21",
+    "puppeteer-core": "^8.0.0",
+    "source-map-support": "^0.5.16",
+    "uuid": "^8.3.2"
   }
 }
