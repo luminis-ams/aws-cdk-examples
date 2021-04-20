@@ -30,8 +30,8 @@ export class AwsFargateEcsCdkStack extends cdk.Stack {
         taskDef.addContainer('ByronContainer', {
             image: ecs.ContainerImage.fromEcrRepository(ecr.Repository.fromRepositoryName(this, 'dockerRepo', 'norconex-java')),
             portMappings: [{
-                containerPort: 80,
-                hostPort: 80,
+                containerPort: 8080,
+                hostPort: 8080,
                 protocol: Protocol.TCP,
             }],
             environment: {
