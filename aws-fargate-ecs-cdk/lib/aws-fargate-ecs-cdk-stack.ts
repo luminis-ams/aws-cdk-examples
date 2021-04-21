@@ -6,13 +6,34 @@ import {Protocol} from "@aws-cdk/aws-ecs";
 import * as logs from '@aws-cdk/aws-logs';
 import * as apigateway from "@aws-cdk/aws-apigateway";
 import * as lambda from "@aws-cdk/aws-lambda";
+import * as dynamodb from "@aws-cdk/aws-dynamodb";
 import * as iam from "@aws-cdk/aws-iam";
 
 export class AwsFargateEcsCdkStack extends cdk.Stack {
     constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
         super(scope, id, props);
 
+        //Roles setup
+        const dynamoDbRole = new iam.Role(this, 'dynamoDbRole', {
+            assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+        });
+        dynamoDbRole.addManagedPolicy(
+            iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonDynamoDBFullAccess')
+        );
 
+        //todo - change this to create role, instead of using pre-created one
+        const fargateRole = iam.Role.fromRoleArn(this, 'Role', 'arn:aws:iam::044915237328:role/ecsTaskExecutionRole', {
+            mutable: false,
+        });
+
+        //DynamoDB setup
+        const table = new dynamodb.Table(this, 'norconex-status', {
+            partitionKey: {name: 'id', type: dynamodb.AttributeType.STRING},
+            billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+
+        });
+
+        //Fargate Cluster setup
         const vpc = new ec2.Vpc(this, 'ByronVpc', {
             maxAzs: 1,
 
@@ -51,14 +72,14 @@ export class AwsFargateEcsCdkStack extends cdk.Stack {
             cluster: cluster,
             taskDefinition: taskDef,
         });
-        const role = iam.Role.fromRoleArn(this, 'Role', 'arn:aws:iam::044915237328:role/ecsTaskExecutionRole', {
-            mutable: false,
-        });
+
+
+        //Lambda setup
         const start = new lambda.Function(this, 'StartHandler', {
             runtime: lambda.Runtime.NODEJS_12_X,
             code: lambda.Code.fromAsset('lambda'),
             handler: 'start.handler',
-            role: role,
+            role: fargateRole,
             environment: {
                 subnets: vpc.publicSubnets.map(s => s.subnetId).join(','),
                 security_group: vpc.vpcDefaultSecurityGroup,
@@ -70,18 +91,30 @@ export class AwsFargateEcsCdkStack extends cdk.Stack {
             runtime: lambda.Runtime.NODEJS_12_X,
             code: lambda.Code.fromAsset('lambda'),
             handler: 'shutdown.handler',
-            role: role,
+            role: fargateRole,
             environment: {
                 cluster: cluster.clusterName
             }
         });
+        const status = new lambda.Function(this, 'StatusHandler', {
+            runtime: lambda.Runtime.NODEJS_12_X,
+            code: lambda.Code.fromAsset('lambda'),
+            handler: 'status.handler',
+            role: dynamoDbRole,
+            environment: {
+                tableName: table.tableName
+            }
+        });
 
+        //Api Gateway
         const api = new apigateway.RestApi(this, 'ByronApi', {});
 
         const startMethod = api.root.addResource('start');
         startMethod.addMethod('GET', new apigateway.LambdaIntegration(start))
         const shutdownMethod = api.root.addResource('shutdown');
         shutdownMethod.addMethod('GET', new apigateway.LambdaIntegration(shutdown))
+        const statusMethod = api.root.addResource('status');
+        statusMethod.addMethod('GET', new apigateway.LambdaIntegration(status))
 
 
     }
