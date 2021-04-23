@@ -107,10 +107,6 @@ public class NorconexService {
         elasticsearchCommitter.setIndexName(norconexProperties.getElasticsearchIndexName());
         crawlerConfig.setCommitters(new JSONFileCommitter(), elasticsearchCommitter);
 
-        crawlerConfig.addEventListeners(event -> {
-            System.out.println("EVENT: " + event.getName() + ",  " + event.getMessage());
-        });
-
         collectorConfig.setCrawlerConfigs(crawlerConfig);
 
         this.collector = new HttpCollector(collectorConfig);

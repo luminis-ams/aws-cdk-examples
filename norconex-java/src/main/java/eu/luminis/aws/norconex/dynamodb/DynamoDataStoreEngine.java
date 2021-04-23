@@ -1,20 +1,24 @@
 package eu.luminis.aws.norconex.dynamodb;
 
+import com.amazonaws.client.builder.AwsClientBuilder;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
+import com.amazonaws.services.dynamodbv2.document.*;
+import com.amazonaws.services.dynamodbv2.model.*;
 import com.norconex.collector.core.crawler.Crawler;
 import com.norconex.collector.core.store.IDataStore;
 import com.norconex.collector.core.store.IDataStoreEngine;
-import com.norconex.commons.lang.file.FileUtil;
-import com.norconex.commons.lang.text.StringUtil;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
-import software.amazon.awssdk.services.dynamodb.model.*;
 
-import java.net.URI;
-import java.net.URISyntaxException;
+import java.text.SimpleDateFormat;
 import java.util.*;
+
+import static com.amazonaws.services.dynamodbv2.model.ScalarAttributeType.S;
+import static eu.luminis.aws.norconex.dynamodb.DynamoDBStore.KEY_ID;
+import static eu.luminis.aws.norconex.dynamodb.DynamoDBStore.KEY_OBJECT;
+import static eu.luminis.aws.norconex.dynamodb.DynamoInteractionUtil.*;
 
 /**
  * The engine connects to DynamoDB with the right credentials. Dynamo contains a number of collections. We might want to
@@ -24,70 +28,40 @@ import java.util.*;
  * We should read this collection and keep the data locally available and up to date
  * <p>
  * https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/examples-dynamodb-items.html
+ * https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/JavaDocumentAPICRUDExample.html
  */
 public class DynamoDataStoreEngine implements IDataStoreEngine {
     private static final Logger LOGGER = LoggerFactory.getLogger(DynamoDataStoreEngine.class);
+    public static final String KEY_NAME = "name";
+    public static final String KEY_TABLE_NAME = "table-name";
+    public static final String KEY_TYPE = "type";
 
     private final DynamoDBProperties dynamoDBProperties;
 
-    private static final String STORE_TYPES_KEY = DynamoDataStoreEngine.class.getName() + "--storetypes";
+    public static final String STORE_TYPES_TABLE = DynamoDataStoreEngine.class.getName() + "--storetypes";
 
-    private DynamoDbClient client;
+    private AmazonDynamoDB client;
+    private DynamoDB dynamoDB;
 
     public DynamoDataStoreEngine(DynamoDBProperties dynamoDBProperties) {
         this.dynamoDBProperties = dynamoDBProperties;
     }
 
-
     @Override
     public void init(Crawler crawler) {
-        // create a clean table name
-        String tableName = crawler.getCollector().getId() + "_" + crawler.getId();
-        tableName = FileUtil.toSafeFileName(tableName);
-        tableName = StringUtil.truncateWithHash(tableName, 63);
-
-        // Check somehow if table exists
-        Region region = Region.of(dynamoDBProperties.getRegion());
         if (dynamoDBProperties.getUseLocal()) {
-            this.client = createLocalClient(region);
+            this.client = AmazonDynamoDBClientBuilder.standard()
+                    .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration("http://localhost:8000", "us-west-1"))
+                    .build();
+            this.dynamoDB = new DynamoDB(this.client);
         } else {
+            // TODO decide what to do when we want to use a remote dynamodb
             throw new IllegalArgumentException("Remote not supported yet");
         }
 
-        // Check for existence of the store types table, if not present, create it
-        List<String> allTables = DynamoInteractionUtil.listAllTables(this.client);
-        boolean storeTypesTableAvailable = allTables.contains(STORE_TYPES_KEY);
+        boolean storeTypesTableAvailable = checkIfTableExists(dynamoDB, STORE_TYPES_TABLE);
         if (!storeTypesTableAvailable) {
-            LOGGER.info("Table for store types is not yet available, about to create it.");
-            CreateTableRequest request = CreateTableRequest.builder()
-                    .attributeDefinitions(
-                            AttributeDefinition.builder()
-                                    .attributeName("name")
-                                    .attributeType(ScalarAttributeType.S)
-                                    .build(),
-                            AttributeDefinition.builder()
-                                    .attributeName("type")
-                                    .attributeType(ScalarAttributeType.S)
-                                    .build()
-                    )
-                    .keySchema(
-                            KeySchemaElement.builder()
-                                    .attributeName("name")
-                                    .keyType(KeyType.HASH)
-                                    .build(),
-                            KeySchemaElement.builder()
-                                    .attributeName("type")
-                                    .keyType(KeyType.RANGE)
-                                    .build()
-                    )
-                    .provisionedThroughput(ProvisionedThroughput.builder()
-                            .readCapacityUnits(1L)
-                            .writeCapacityUnits(1L)
-                            .build())
-                    .tableName(STORE_TYPES_KEY)
-                    .build();
-            DynamoInteractionUtil.createTable(this.client, request);
-            LOGGER.info("Table for store types is created.");
+            createStoreTypeTable();
         } else {
             LOGGER.info("Table for store types is available.");
         }
@@ -95,119 +69,167 @@ public class DynamoDataStoreEngine implements IDataStoreEngine {
 
     @Override
     public boolean clean() {
-        return false;
+        LOGGER.info("About to clean all tables from ");
+        TableCollection<ListTablesResult> tables = dynamoDB.listTables();
+        Table table = this.dynamoDB.getTable(STORE_TYPES_TABLE);
+        table.delete();
+        return tables.iterator().hasNext();
     }
 
     @Override
     public void close() {
-        if (this.client != null) {
-            this.client.close();
-        }
+        // TODO check if we need to do some cleaning up here
         LOGGER.info("DynamoDB data store engine closed.");
     }
 
     @Override
     public <T> IDataStore<T> openStore(String name, Class<T> type) {
-        HashMap<String, AttributeValue> itemValues = new HashMap<>();
-        itemValues.put("name", AttributeValue.builder().s(name).build());
-        itemValues.put("type", AttributeValue.builder().s(type.getName()).build());
+        LOGGER.info("Open data store for name {} with type {}", name, type);
 
-        PutItemRequest request = PutItemRequest.builder()
-                .tableName(STORE_TYPES_KEY)
-                .item(itemValues)
-                .build();
+        Table table = this.dynamoDB.getTable(STORE_TYPES_TABLE);
+        String tableName;
 
-        try {
-            this.client.putItem(request);
-            LOGGER.info("Store with name {} and type {} was successfully added", name, type);
-        } catch (ResourceNotFoundException e) {
-            LOGGER.error("Error: The Amazon DynamoDB table \"{}\" can't be found.", STORE_TYPES_KEY);
-            throw new RuntimeException("Could not find table for store types");
-        } catch (DynamoDbException e) {
-            LOGGER.error("Error: creating store {} of type {}.", name, type);
-            throw new RuntimeException("Could not create store type");
+        // If there is a data store with the name, obtain the table name, else create it
+        Item foundDataStore = table.getItem(KEY_NAME, name);
+        if (null != foundDataStore) {
+            tableName = foundDataStore.getString(KEY_TABLE_NAME);
+        } else {
+            LOGGER.info("Data store with not yet available, need to create it.");
+            tableName = newTableName(name);
+            Item item = new Item()
+                    .withPrimaryKey("name", name)
+                    .withString("type", type.getName())
+                    .withString("table-name", tableName);
+            table.putItem(item);
         }
 
-        return new DynamoDBStore<>(this.client, name, type);
+        if (!checkIfTableExists(this.dynamoDB, tableName)) {
+            createDataStoreTable(this.dynamoDB, tableName);
+        } else {
+            LOGGER.info("Table {} is already available.", name);
+        }
+
+        return new DynamoDBStore<>(this.client, name, type, tableName);
     }
 
     @Override
     public boolean dropStore(String name) {
-        HashMap<String, AttributeValue> keyToGet = new HashMap<>();
+        LOGGER.info("Open data store with name {} ", name);
 
-        keyToGet.put("name", AttributeValue.builder()
-                .s(name)
-                .build());
-
-        DeleteItemRequest deleteReq = DeleteItemRequest.builder()
-                .tableName(STORE_TYPES_KEY)
-                .key(keyToGet)
-                .build();
+        Table storeTable = this.dynamoDB.getTable(STORE_TYPES_TABLE);
+        Item dataStoreToRemove = storeTable.getItem(KEY_NAME, name);
+        String tableNameToRemove = dataStoreToRemove.getString(KEY_TABLE_NAME);
+        Table table = this.dynamoDB.getTable(tableNameToRemove);
         try {
-            this.client.deleteItem(deleteReq);
+            storeTable.deleteItem(KEY_NAME, name);
+            table.delete();
             return true;
-        } catch (DynamoDbException e) {
-            LOGGER.error("Error: deleting store {}.", name);
+        } catch (Exception e) {
+            LOGGER.error("Could not delete the table {}", name);
         }
         return false;
     }
 
     @Override
     public boolean renameStore(IDataStore<?> dataStore, String newName) {
-        HashMap<String, AttributeValue> itemKey = new HashMap<>();
+        LOGGER.info("Rename data store for name {} to name {}", dataStore.getName(), newName);
 
-        itemKey.put("name", AttributeValue.builder().s(dataStore.getName()).build());
+        boolean targetExists = false;
 
-        HashMap<String, AttributeValueUpdate> updatedValues =
-                new HashMap<>();
-
-        // Update the column specified by name with updatedVal
-        updatedValues.put("name", AttributeValueUpdate.builder()
-                .value(AttributeValue.builder().s(newName).build())
-                .action(AttributeAction.PUT)
-                .build());
-
-        UpdateItemRequest request = UpdateItemRequest.builder()
-                .tableName(STORE_TYPES_KEY)
-                .key(itemKey)
-                .attributeUpdates(updatedValues)
-                .build();
+        Table dataStoresTypeTable = dynamoDB.getTable(STORE_TYPES_TABLE);
+        // Check if entry exists for new name
+        try {
+            Item existingDataStoreWithNewName = dataStoresTypeTable.getItem(KEY_NAME, newName);
+            if (null != existingDataStoreWithNewName) {
+                targetExists = true;
+            }
+        } catch (ResourceNotFoundException e) {
+            // nothing special
+            LOGGER.info("The target name for a resource does not yet exist: {}", newName);
+        }
 
         try {
-            this.client.updateItem(request);
-            return true;
-        } catch (ResourceNotFoundException e) {
-            LOGGER.error("Error: The Amazon DynamoDB table \"{}\" can't be found.", STORE_TYPES_KEY);
-            throw new RuntimeException("Could not find table for store types");
-        } catch (DynamoDbException e) {
-            LOGGER.error("Error: renaming store {} to {}.", dataStore.getName(), newName);
+            String oldTableName;
+            Item oldDataStoreItem = dataStoresTypeTable.getItem(KEY_NAME, dataStore.getName());
+            if (oldDataStoreItem != null) {
+                oldTableName = oldDataStoreItem.getString(KEY_TABLE_NAME);
+            } else {
+                oldTableName = newTableName(newName);
+                createDataStoreTable(dynamoDB, oldTableName);
+            }
+            dataStoresTypeTable.deleteItem(KEY_NAME, dataStore.getName());
+
+            DynamoDBStore<?> dynamoDBStore = (DynamoDBStore<?>) dataStore;
+            Item item = new Item().withPrimaryKey(KEY_NAME, newName)
+                    .withString(KEY_TYPE, dynamoDBStore.getType().getName())
+                    .withString(KEY_TABLE_NAME, oldTableName);
+            dataStoresTypeTable.putItem(item);
+
+            dynamoDBStore.setName(newName);
+        } catch (AmazonDynamoDBException e) {
+            LOGGER.info("Most likely we cannot find the datastore to rename");
         }
-        return false;
+
+        return targetExists;
     }
 
     @Override
     public Set<String> getStoreNames() {
+        ScanRequest scanRequest = new ScanRequest().withTableName(STORE_TYPES_TABLE);
 
-        return null;
+        ScanResult result = client.scan(scanRequest);
+        Set<String> names = new HashSet<>();
+        for (Map<String, AttributeValue> item : result.getItems()) {
+            names.add(item.get("name").getS());
+        }
+        return names;
     }
 
     @Override
     public Optional<Class<?>> getStoreType(String name) {
+        Table table = dynamoDB.getTable(STORE_TYPES_TABLE);
+        Item oldItem = table.getItem(new PrimaryKey("name", name));
+        String typeAsString = oldItem.getString("type");
+        try {
+            return Optional.of(Class.forName(typeAsString));
+        } catch (ClassNotFoundException e) {
+            LOGGER.error("Could not find class for name {}", name);
+        }
         return Optional.empty();
     }
 
-    private DynamoDbClient createLocalClient(Region region) {
-        try {
-            return DynamoDbClient.builder()
-                    .region(region)
-                    .credentialsProvider(ProfileCredentialsProvider.builder().profileName(dynamoDBProperties.getProfileName()).build())
-                    .endpointOverride(new URI(dynamoDBProperties.getLocalUri()))
-                    .build();
-        } catch (URISyntaxException e) {
-            LOGGER.warn("Configured uri {} is not valid", dynamoDBProperties.getLocalUri());
-            throw new IllegalArgumentException("URI is not valid: " + dynamoDBProperties.getLocalUri());
-        }
+    @NotNull
+    private String newTableName(String name) {
+        String tableName;
+        String timeStamp = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
+        tableName = name + "-" + timeStamp;
+        return tableName;
     }
 
+    private void createStoreTypeTable() {
+        LOGGER.info("Table for store types is not yet available, about to create it.");
+        List<AttributeDefinition> attributeDefinitions = new ArrayList<>();
+        attributeDefinitions.add(new AttributeDefinition().withAttributeName(KEY_NAME).withAttributeType(S));
 
+        List<KeySchemaElement> keySchema = new ArrayList<>();
+        keySchema.add(new KeySchemaElement().withAttributeName(KEY_NAME).withKeyType(KeyType.HASH));
+
+        CreateTableRequest request = new CreateTableRequest()
+                .withTableName(STORE_TYPES_TABLE)
+                .withKeySchema(keySchema)
+                .withAttributeDefinitions(attributeDefinitions)
+                .withProvisionedThroughput(
+                        new ProvisionedThroughput()
+                                .withReadCapacityUnits(1L)
+                                .withWriteCapacityUnits(1L)
+                );
+
+        Table table = dynamoDB.createTable(request);
+        try {
+            table.waitForActive();
+        } catch (InterruptedException e) {
+            LOGGER.warn("Got interrupted while waiting for table to be created.");
+        }
+        LOGGER.info("Table for store types is created.");
+    }
 }
