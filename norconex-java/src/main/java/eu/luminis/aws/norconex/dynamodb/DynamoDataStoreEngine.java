@@ -1,6 +1,7 @@
 package eu.luminis.aws.norconex.dynamodb;
 
 import com.amazonaws.client.builder.AwsClientBuilder;
+import com.amazonaws.regions.Regions;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import com.amazonaws.services.dynamodbv2.document.*;
@@ -12,23 +13,25 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.text.SimpleDateFormat;
 import java.util.*;
 
 import static com.amazonaws.services.dynamodbv2.model.ScalarAttributeType.S;
-import static eu.luminis.aws.norconex.dynamodb.DynamoDBStore.KEY_ID;
-import static eu.luminis.aws.norconex.dynamodb.DynamoDBStore.KEY_OBJECT;
-import static eu.luminis.aws.norconex.dynamodb.DynamoInteractionUtil.*;
+import static eu.luminis.aws.norconex.dynamodb.DynamoInteractionUtil.createDataStoreTable;
 
 /**
- * The engine connects to DynamoDB with the right credentials. Dynamo contains a number of collections. We might want to
- * make them easier to identify as belonging to each other.
+ * <p>
+ * This engine manages the Data stores in DynamoDB. A datastore consists of a name and a table name. DynamoDB tables
+ * are reused when renaming a DataStore.
+ * </p>
  * <p>
  * One table contains references to the other tables, this the one with the configured key: --storetypes
- * We should read this collection and keep the data locally available and up to date
+ * We should read this collection and keep the data locally available and up to date. All table names are prefixed
+ * with the provided prefix.
+ * </p>
  * <p>
  * https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/examples-dynamodb-items.html
  * https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/JavaDocumentAPICRUDExample.html
+ * </p>
  */
 public class DynamoDataStoreEngine implements IDataStoreEngine {
     private static final Logger LOGGER = LoggerFactory.getLogger(DynamoDataStoreEngine.class);
@@ -38,10 +41,8 @@ public class DynamoDataStoreEngine implements IDataStoreEngine {
 
     private final DynamoDBProperties dynamoDBProperties;
 
-    public static final String STORE_TYPES_TABLE = DynamoDataStoreEngine.class.getName() + "--storetypes";
-
-    private AmazonDynamoDB client;
-    private DynamoDB dynamoDB;
+    private AmazonDynamoDB client; // Used to connect to AWS DynamoDB
+    private DynamoDB dynamoDB; // Make some functionalities easier available than the raw client
 
     public DynamoDataStoreEngine(DynamoDBProperties dynamoDBProperties) {
         this.dynamoDBProperties = dynamoDBProperties;
@@ -51,59 +52,69 @@ public class DynamoDataStoreEngine implements IDataStoreEngine {
     public void init(Crawler crawler) {
         if (dynamoDBProperties.getUseLocal()) {
             this.client = AmazonDynamoDBClientBuilder.standard()
-                    .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration("http://localhost:8000", "us-west-1"))
+                    .withEndpointConfiguration(new AwsClientBuilder
+                            .EndpointConfiguration(dynamoDBProperties.getLocalUri(), dynamoDBProperties.getRegion()))
                     .build();
-            this.dynamoDB = new DynamoDB(this.client);
         } else {
-            // TODO decide what to do when we want to use a remote dynamodb
-            throw new IllegalArgumentException("Remote not supported yet");
+            this.client = AmazonDynamoDBClientBuilder
+                    .standard()
+                    .withRegion(Regions.fromName(dynamoDBProperties.getRegion()))
+                    .build();
         }
+        this.dynamoDB = new DynamoDB(this.client);
 
-        boolean storeTypesTableAvailable = checkIfTableExists(dynamoDB, STORE_TYPES_TABLE);
-        if (!storeTypesTableAvailable) {
+        DynamoInteractionUtil.logAllTables(this.dynamoDB);
+
+        if (!checkIfTableExists()) {
             createStoreTypeTable();
         } else {
             LOGGER.info("Table for store types is available.");
+            logAllDataStoresFromType();
         }
     }
 
     @Override
     public boolean clean() {
-        LOGGER.info("About to clean all tables from ");
+        LOGGER.info("About to clean all tables starting with {}", dynamoDBProperties.getTablePrefix());
         TableCollection<ListTablesResult> tables = dynamoDB.listTables();
-        Table table = this.dynamoDB.getTable(STORE_TYPES_TABLE);
-        table.delete();
+        tables.forEach(table -> {
+            if (table.getTableName().startsWith(dynamoDBProperties.getTablePrefix())) {
+                this.dynamoDB.getTable(table.getTableName()).delete();
+            }
+        });
         return tables.iterator().hasNext();
     }
 
     @Override
     public void close() {
-        // TODO check if we need to do some cleaning up here
         LOGGER.info("DynamoDB data store engine closed.");
+        logAllDataStoresFromType();
+//        this.client.shutdown();
     }
 
     @Override
     public <T> IDataStore<T> openStore(String name, Class<T> type) {
         LOGGER.info("Open data store for name {} with type {}", name, type);
 
-        Table table = this.dynamoDB.getTable(STORE_TYPES_TABLE);
+        Table dataStoreTypesTable = this.dynamoDB.getTable(obtainDataStoreTypeTableName());
         String tableName;
 
         // If there is a data store with the name, obtain the table name, else create it
-        Item foundDataStore = table.getItem(KEY_NAME, name);
+        Item foundDataStore = dataStoreTypesTable.getItem(KEY_NAME, name);
         if (null != foundDataStore) {
+            LOGGER.info("Existing Data store {} opened.", name);
             tableName = foundDataStore.getString(KEY_TABLE_NAME);
         } else {
             LOGGER.info("Data store with not yet available, need to create it.");
-            tableName = newTableName(name);
+            tableName = newTableName();
             Item item = new Item()
                     .withPrimaryKey("name", name)
                     .withString("type", type.getName())
                     .withString("table-name", tableName);
-            table.putItem(item);
+            dataStoreTypesTable.putItem(item);
         }
 
-        if (!checkIfTableExists(this.dynamoDB, tableName)) {
+        if (!checkIfTableExists(tableName)) {
             createDataStoreTable(this.dynamoDB, tableName);
         } else {
             LOGGER.info("Table {} is already available.", name);
@@ -116,7 +127,7 @@ public class DynamoDataStoreEngine implements IDataStoreEngine {
     public boolean dropStore(String name) {
         LOGGER.info("Open data store with name {} ", name);
 
-        Table storeTable = this.dynamoDB.getTable(STORE_TYPES_TABLE);
+        Table storeTable = this.dynamoDB.getTable(obtainDataStoreTypeTableName());
         Item dataStoreToRemove = storeTable.getItem(KEY_NAME, name);
         String tableNameToRemove = dataStoreToRemove.getString(KEY_TABLE_NAME);
         Table table = this.dynamoDB.getTable(tableNameToRemove);
@@ -136,7 +147,7 @@ public class DynamoDataStoreEngine implements IDataStoreEngine {
 
         boolean targetExists = false;
 
-        Table dataStoresTypeTable = dynamoDB.getTable(STORE_TYPES_TABLE);
+        Table dataStoresTypeTable = dynamoDB.getTable(obtainDataStoreTypeTableName());
         // Check if entry exists for new name
         try {
             Item existingDataStoreWithNewName = dataStoresTypeTable.getItem(KEY_NAME, newName);
@@ -154,7 +165,7 @@ public class DynamoDataStoreEngine implements IDataStoreEngine {
             if (oldDataStoreItem != null) {
                 oldTableName = oldDataStoreItem.getString(KEY_TABLE_NAME);
             } else {
-                oldTableName = newTableName(newName);
+                oldTableName = newTableName();
                 createDataStoreTable(dynamoDB, oldTableName);
             }
             dataStoresTypeTable.deleteItem(KEY_NAME, dataStore.getName());
@@ -175,7 +186,7 @@ public class DynamoDataStoreEngine implements IDataStoreEngine {
 
     @Override
     public Set<String> getStoreNames() {
-        ScanRequest scanRequest = new ScanRequest().withTableName(STORE_TYPES_TABLE);
+        ScanRequest scanRequest = new ScanRequest().withTableName(obtainDataStoreTypeTableName());
 
         ScanResult result = client.scan(scanRequest);
         Set<String> names = new HashSet<>();
@@ -187,7 +198,7 @@ public class DynamoDataStoreEngine implements IDataStoreEngine {
 
     @Override
     public Optional<Class<?>> getStoreType(String name) {
-        Table table = dynamoDB.getTable(STORE_TYPES_TABLE);
+        Table table = dynamoDB.getTable(obtainDataStoreTypeTableName());
         Item oldItem = table.getItem(new PrimaryKey("name", name));
         String typeAsString = oldItem.getString("type");
         try {
@@ -199,15 +210,13 @@ public class DynamoDataStoreEngine implements IDataStoreEngine {
     }
 
     @NotNull
-    private String newTableName(String name) {
-        String tableName;
-        String timeStamp = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
-        tableName = name + "-" + timeStamp;
-        return tableName;
+    private String newTableName() {
+        return this.dynamoDBProperties.getTablePrefix() + UUID.randomUUID();
     }
 
     private void createStoreTypeTable() {
         LOGGER.info("Table for store types is not yet available, about to create it.");
+
         List<AttributeDefinition> attributeDefinitions = new ArrayList<>();
         attributeDefinitions.add(new AttributeDefinition().withAttributeName(KEY_NAME).withAttributeType(S));
 
@@ -215,7 +224,7 @@ public class DynamoDataStoreEngine implements IDataStoreEngine {
         keySchema.add(new KeySchemaElement().withAttributeName(KEY_NAME).withKeyType(KeyType.HASH));
 
         CreateTableRequest request = new CreateTableRequest()
-                .withTableName(STORE_TYPES_TABLE)
+                .withTableName(obtainDataStoreTypeTableName())
                 .withKeySchema(keySchema)
                 .withAttributeDefinitions(attributeDefinitions)
                 .withProvisionedThroughput(
@@ -231,5 +240,36 @@ public class DynamoDataStoreEngine implements IDataStoreEngine {
             LOGGER.warn("Got interrupted while waiting for table to be created.");
         }
         LOGGER.info("Table for store types is created.");
+    }
+
+    public boolean checkIfTableExists() {
+        String tableName = obtainDataStoreTypeTableName();
+        return checkIfTableExists(tableName);
+    }
+
+    public boolean checkIfTableExists(String tableName) {
+        TableCollection<ListTablesResult> tables = dynamoDB.listTables();
+        boolean tableAvailable = false;
+        for (Table table : tables) {
+            if (table.getTableName().equals(tableName)) {
+                tableAvailable = true;
+                break;
+            }
+        }
+        return tableAvailable;
+    }
+
+    private void logAllDataStoresFromType() {
+        ScanRequest scanRequest = new ScanRequest().withTableName(obtainDataStoreTypeTableName());
+
+        ScanResult result = client.scan(scanRequest);
+        for (Map<String, AttributeValue> item : result.getItems()) {
+            LOGGER.info("Found item with name {}, table {} and type {}",
+                    item.get(KEY_NAME), item.get(KEY_TABLE_NAME), item.get(KEY_TYPE));
+        }
+    }
+
+    private String obtainDataStoreTypeTableName() {
+        return dynamoDBProperties.getTablePrefix() + "--storetypes";
     }
 }

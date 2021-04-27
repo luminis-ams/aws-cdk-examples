@@ -15,6 +15,9 @@ import com.norconex.importer.ImporterConfig;
 import com.norconex.importer.handler.tagger.impl.DOMTagger;
 import eu.luminis.aws.norconex.dynamodb.DynamoDBProperties;
 import eu.luminis.aws.norconex.dynamodb.DynamoDataStoreEngine;
+import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -23,9 +26,12 @@ import javax.annotation.PreDestroy;
 import java.util.Arrays;
 import java.util.List;
 
+import static eu.luminis.aws.norconex.NorconexAction.CLEAN;
+import static eu.luminis.aws.norconex.NorconexAction.START;
+
 @Service
 public class NorconexService {
-
+    private static final Logger LOGGER = LoggerFactory.getLogger(NorconexService.class);
     private final NorconexProperties norconexProperties;
     private final DynamoDBProperties dynamoDBProperties;
 
@@ -66,66 +72,35 @@ public class NorconexService {
 
     }
 
-    public void startNoLinks() {
-        List<Crawler> crawlers = this.collector.getCrawlers();
-        crawlers.forEach(crawler -> {
-            CrawlerConfig crawlerConfig = crawler.getCrawlerConfig();
-            if (crawlerConfig instanceof HttpCrawlerConfig) {
-                ((HttpCrawlerConfig) crawlerConfig).setMaxDepth(0);
-            }
-        });
-        this.start();
-    }
-
     @PostConstruct
     public void afterConstruct() {
-        HttpCollectorConfig collectorConfig = new HttpCollectorConfig();
-        collectorConfig.setId(norconexProperties.getName() + "Collector");
 
         HttpCrawlerConfig crawlerConfig = new HttpCrawlerConfig();
         crawlerConfig.setId(norconexProperties.getName() + "Crawler");
         crawlerConfig.setStartURLsProviders();
         crawlerConfig.setStartURLs(norconexProperties.getStartUrls());
-        URLCrawlScopeStrategy strategy = new URLCrawlScopeStrategy();
-        strategy.setStayOnDomain(true);
-
-        ImporterConfig importerConfig = new ImporterConfig();
-
-        DOMTagger domTagger = new DOMTagger();
-        domTagger.addDOMExtractDetails(new DOMTagger.DOMExtractDetails("div#content", "content_2", PropertySetter.REPLACE));
-        importerConfig.setPreParseHandlers(Arrays.asList(domTagger));
-        crawlerConfig.setImporterConfig(importerConfig);
-
-        crawlerConfig.setUrlCrawlScopeStrategy(strategy);
-        crawlerConfig.setMaxDepth(1);
-
-//        crawlerConfig.setDataStoreEngine(createJdbcDataStoreEngine());
-//        crawlerConfig.setDataStoreEngine(new MVStoreDataStoreEngine());
+        crawlerConfig.setImporterConfig(createImporterConfiguration());
+        crawlerConfig.setUrlCrawlScopeStrategy(createCrawlerDomainSrategy());
+        crawlerConfig.setMaxDepth(norconexProperties.getMaxDepth());
         crawlerConfig.setDataStoreEngine(new DynamoDataStoreEngine(dynamoDBProperties));
-        ElasticsearchCommitter elasticsearchCommitter = new ElasticsearchCommitter();
-        elasticsearchCommitter.setNodes(norconexProperties.getElasticsearchNodes());
-        elasticsearchCommitter.setIndexName(norconexProperties.getElasticsearchIndexName());
-        crawlerConfig.setCommitters(new JSONFileCommitter(), elasticsearchCommitter);
+        crawlerConfig.setCommitters(createElasticsearchCommitter());
 
+        HttpCollectorConfig collectorConfig = new HttpCollectorConfig();
+        collectorConfig.setId(norconexProperties.getName() + "Collector");
         collectorConfig.setCrawlerConfigs(crawlerConfig);
 
         this.collector = new HttpCollector(collectorConfig);
 
-    }
-
-    private JdbcDataStoreEngine createJdbcDataStoreEngine() {
-        JdbcDataStoreEngine dataStoreEngine = new JdbcDataStoreEngine();
-        dataStoreEngine.setTablePrefix("norconex");
-
-        Properties configProperties = new Properties();
-        configProperties.add("jdbcUrl","jdbc:mysql://localhost:3306/norconex");
-        configProperties.add("username", "norconex");
-        configProperties.add("password", "geheim");
-        configProperties.add("driverClassName", "com.mysql.jdbc.Driver");
-
-        dataStoreEngine.setConfigProperties(configProperties);
-
-        return dataStoreEngine;
+        switch (norconexProperties.getAction()) {
+            case START:
+                this.start();
+                break;
+            case CLEAN:
+                this.clean();
+                break;
+            default:
+                LOGGER.info("Action '{}' is unrecognized", norconexProperties.getAction());
+        }
     }
 
     @PreDestroy
@@ -133,5 +108,29 @@ public class NorconexService {
         if (null != this.collector) {
             this.collector.stop();
         }
+    }
+
+    @NotNull
+    private ElasticsearchCommitter createElasticsearchCommitter() {
+        ElasticsearchCommitter elasticsearchCommitter = new ElasticsearchCommitter();
+        elasticsearchCommitter.setNodes(norconexProperties.getElasticsearchNodes());
+        elasticsearchCommitter.setIndexName(norconexProperties.getElasticsearchIndexName());
+        return elasticsearchCommitter;
+    }
+
+    @NotNull
+    private URLCrawlScopeStrategy createCrawlerDomainSrategy() {
+        URLCrawlScopeStrategy strategy = new URLCrawlScopeStrategy();
+        strategy.setStayOnDomain(true);
+        return strategy;
+    }
+
+    @NotNull
+    private ImporterConfig createImporterConfiguration() {
+        ImporterConfig importerConfig = new ImporterConfig();
+        DOMTagger domTagger = new DOMTagger();
+        domTagger.addDOMExtractDetails(new DOMTagger.DOMExtractDetails("div#content", "content_2", PropertySetter.REPLACE));
+        importerConfig.setPreParseHandlers(Arrays.asList(domTagger));
+        return importerConfig;
     }
 }

@@ -25,11 +25,6 @@ public class MainController {
         norconexService.start();
     }
 
-    @PostMapping("/start/no_links")
-    public void startNoLinks() {
-        norconexService.startNoLinks();
-    }
-
     @PostMapping("/stop")
     public void stop() {
         norconexService.stop();

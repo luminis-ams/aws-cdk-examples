@@ -13,6 +13,7 @@ public class NorconexProperties {
     private List<String> elasticsearchNodes;
     private String elasticsearchIndexName;
     private Integer maxDepth;
+    private NorconexAction action;
 
     public String getName() {
         return name;
@@ -52,5 +53,13 @@ public class NorconexProperties {
 
     public void setMaxDepth(Integer maxDepth) {
         this.maxDepth = maxDepth;
+    }
+
+    public NorconexAction getAction() {
+        return action;
+    }
+
+    public void setAction(NorconexAction action) {
+        this.action = action;
     }
 }

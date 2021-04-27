@@ -10,6 +10,7 @@ public class DynamoDBProperties {
     private Boolean useLocal;
     private String localUri;
     private String profileName;
+    private String tablePrefix;
 
     public String getRegion() {
         return region;
@@ -41,5 +42,13 @@ public class DynamoDBProperties {
 
     public void setProfileName(String profileName) {
         this.profileName = profileName;
+    }
+
+    public String getTablePrefix() {
+        return tablePrefix;
+    }
+
+    public void setTablePrefix(String tablePrefix) {
+        this.tablePrefix = tablePrefix;
     }
 }
