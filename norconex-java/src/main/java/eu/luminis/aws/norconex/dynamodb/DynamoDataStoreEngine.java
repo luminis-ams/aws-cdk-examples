@@ -227,11 +227,7 @@ public class DynamoDataStoreEngine implements IDataStoreEngine {
                 .withTableName(obtainDataStoreTypeTableName())
                 .withKeySchema(keySchema)
                 .withAttributeDefinitions(attributeDefinitions)
-                .withProvisionedThroughput(
-                        new ProvisionedThroughput()
-                                .withReadCapacityUnits(1L)
-                                .withWriteCapacityUnits(1L)
-                );
+                .withBillingMode(BillingMode.PAY_PER_REQUEST);
 
         Table table = dynamoDB.createTable(request);
         try {

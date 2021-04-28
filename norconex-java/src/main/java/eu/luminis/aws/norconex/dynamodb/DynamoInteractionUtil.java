@@ -28,11 +28,7 @@ public class DynamoInteractionUtil {
                 .withTableName(tableName)
                 .withKeySchema(keySchema)
                 .withAttributeDefinitions(attributeDefinitions)
-                .withProvisionedThroughput(
-                        new ProvisionedThroughput()
-                                .withReadCapacityUnits(1L)
-                                .withWriteCapacityUnits(1L)
-                );
+                .withBillingMode(BillingMode.PAY_PER_REQUEST);
 
         Table table = dynamoDB.createTable(request);
         try {
@@ -43,7 +39,6 @@ public class DynamoInteractionUtil {
         }
         LOGGER.info("Table for data store {} is created.", tableName);
     }
-
 
     public static void logAllTables(DynamoDB dynamoDB) {
         LOGGER.info("********** All tables ***************");
