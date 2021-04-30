@@ -17,6 +17,7 @@ import java.util.*;
 
 import static com.amazonaws.services.dynamodbv2.model.ScalarAttributeType.S;
 import static eu.luminis.aws.norconex.dynamodb.DynamoInteractionUtil.createDataStoreTable;
+import static eu.luminis.aws.norconex.dynamodb.DynamoInteractionUtil.createDynamoDBClient;
 
 /**
  * <p>
@@ -50,17 +51,7 @@ public class DynamoDataStoreEngine implements IDataStoreEngine {
 
     @Override
     public void init(Crawler crawler) {
-        if (dynamoDBProperties.getUseLocal()) {
-            this.client = AmazonDynamoDBClientBuilder.standard()
-                    .withEndpointConfiguration(new AwsClientBuilder
-                            .EndpointConfiguration(dynamoDBProperties.getLocalUri(), dynamoDBProperties.getRegion()))
-                    .build();
-        } else {
-            this.client = AmazonDynamoDBClientBuilder
-                    .standard()
-                    .withRegion(Regions.fromName(dynamoDBProperties.getRegion()))
-                    .build();
-        }
+        this.client = createDynamoDBClient(this.dynamoDBProperties);
         this.dynamoDB = new DynamoDB(this.client);
 
         DynamoInteractionUtil.logAllTables(this.dynamoDB);

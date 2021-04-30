@@ -4,10 +4,7 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
-import com.amazonaws.services.dynamodbv2.model.AttributeValue;
-import com.amazonaws.services.dynamodbv2.model.ResourceNotFoundException;
-import com.amazonaws.services.dynamodbv2.model.ScanRequest;
-import com.amazonaws.services.dynamodbv2.model.ScanResult;
+import com.amazonaws.services.dynamodbv2.model.*;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.norconex.collector.core.store.IDataStore;
@@ -114,15 +111,14 @@ public class DynamoDBStore<T> implements IDataStore<T> {
     @Override
     public long count() {
 
-//        return this.dynamoDB.getTable(this.tableName).getDescription().getItemCount();
-
-        ScanRequest scanRequest = new ScanRequest().withTableName(this.tableName).withLimit(1);
-        try {
-            ScanResult result = client.scan(scanRequest);
-            return result.getCount(); // TODO check if this returns the overall number of documents
-        } catch (ResourceNotFoundException e) {
-            LOGGER.warn("Cannot get count for table {} {} as it does not exist", this.name, this.tableName);
+        Table table = this.dynamoDB.getTable(this.tableName);
+        if (null != table) {
+            TableDescription description = table.getDescription();
+            if (null != description) {
+                return description.getItemCount();
+            }
         }
+
         return 0;
     }
 

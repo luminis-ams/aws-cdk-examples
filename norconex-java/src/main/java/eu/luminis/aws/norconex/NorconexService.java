@@ -1,19 +1,18 @@
 package eu.luminis.aws.norconex;
 
-import com.norconex.collector.core.crawler.Crawler;
-import com.norconex.collector.core.crawler.CrawlerConfig;
-import com.norconex.collector.core.store.impl.jdbc.JdbcDataStoreEngine;
+import com.norconex.collector.core.crawler.CrawlerEvent;
+import com.norconex.collector.core.crawler.CrawlerLifeCycleListener;
+import com.norconex.collector.core.monitor.CrawlerMonitor;
 import com.norconex.collector.http.HttpCollector;
 import com.norconex.collector.http.HttpCollectorConfig;
 import com.norconex.collector.http.crawler.HttpCrawlerConfig;
 import com.norconex.collector.http.crawler.URLCrawlScopeStrategy;
-import com.norconex.committer.core3.fs.impl.JSONFileCommitter;
 import com.norconex.committer.elasticsearch.ElasticsearchCommitter;
-import com.norconex.commons.lang.map.Properties;
 import com.norconex.commons.lang.map.PropertySetter;
 import com.norconex.importer.ImporterConfig;
 import com.norconex.importer.handler.tagger.impl.DOMTagger;
 import eu.luminis.aws.norconex.dynamodb.DynamoDBProperties;
+import eu.luminis.aws.norconex.dynamodb.DynamoDBRepository;
 import eu.luminis.aws.norconex.dynamodb.DynamoDataStoreEngine;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -24,23 +23,23 @@ import org.springframework.stereotype.Service;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.util.Arrays;
-import java.util.List;
-
-import static eu.luminis.aws.norconex.NorconexAction.CLEAN;
-import static eu.luminis.aws.norconex.NorconexAction.START;
 
 @Service
 public class NorconexService {
     private static final Logger LOGGER = LoggerFactory.getLogger(NorconexService.class);
     private final NorconexProperties norconexProperties;
     private final DynamoDBProperties dynamoDBProperties;
+    private final DynamoDBRepository dynamoDBRepository;
 
     private HttpCollector collector;
 
     @Autowired
-    public NorconexService(NorconexProperties norconexProperties, DynamoDBProperties dynamoDBProperties) {
+    public NorconexService(NorconexProperties norconexProperties,
+                           DynamoDBProperties dynamoDBProperties,
+                           DynamoDBRepository dynamoDBRepository) {
         this.norconexProperties = norconexProperties;
         this.dynamoDBProperties = dynamoDBProperties;
+        this.dynamoDBRepository = dynamoDBRepository;
     }
 
     public void start() {
@@ -77,7 +76,6 @@ public class NorconexService {
 
         HttpCrawlerConfig crawlerConfig = new HttpCrawlerConfig();
         crawlerConfig.setId(norconexProperties.getName() + "Crawler");
-        crawlerConfig.setStartURLsProviders();
         crawlerConfig.setStartURLs(norconexProperties.getStartUrls());
         crawlerConfig.setImporterConfig(createImporterConfiguration());
         crawlerConfig.setUrlCrawlScopeStrategy(createCrawlerDomainSrategy());
@@ -88,6 +86,8 @@ public class NorconexService {
         HttpCollectorConfig collectorConfig = new HttpCollectorConfig();
         collectorConfig.setId(norconexProperties.getName() + "Collector");
         collectorConfig.setCrawlerConfigs(crawlerConfig);
+
+        collectorConfig.addEventListeners(createCrawlerLifeCycleListener());
 
         this.collector = new HttpCollector(collectorConfig);
 
@@ -108,6 +108,17 @@ public class NorconexService {
         if (null != this.collector) {
             this.collector.stop();
         }
+    }
+
+    @NotNull
+    private CrawlerLifeCycleListener createCrawlerLifeCycleListener() {
+        return new CrawlerLifeCycleListener() {
+            @Override
+            protected void onCrawlerShutdown(CrawlerEvent event) {
+                CrawlerMonitor monitor = event.getSource().getMonitor();
+                dynamoDBRepository.storeCrawlerStats(norconexProperties.getName(), monitor.getEventCounts());
+            }
+        };
     }
 
     @NotNull
