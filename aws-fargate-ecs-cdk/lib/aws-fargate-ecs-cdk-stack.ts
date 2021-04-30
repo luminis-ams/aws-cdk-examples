@@ -13,30 +13,32 @@ export class AwsFargateEcsCdkStack extends cdk.Stack {
     constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
         super(scope, id, props);
 
+        //todo - Fix better roles, more restrictive
+
         //Roles setup
-        const dynamoDbRole = new iam.Role(this, 'dynamoDbRole', {
-            assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+        const fargateRole = new iam.Role(this, 'fargateRole', {
+            assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
         });
-        dynamoDbRole.addManagedPolicy(
+        fargateRole.addManagedPolicy(
             iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonDynamoDBFullAccess')
         );
+        fargateRole.addManagedPolicy(
+            iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonESFullAccess')
+        );
 
-        //todo - change this to create role, instead of using pre-created one
-        const fargateRole = iam.Role.fromRoleArn(this, 'Role', 'arn:aws:iam::044915237328:role/ecsTaskExecutionRole', {
-            mutable: false,
+        const lambdaRole = new iam.Role(this, 'lambdaRole', {
+            assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
         });
-
-        //DynamoDB setup
-        const table = new dynamodb.Table(this, 'norconex-status', {
-            partitionKey: {name: 'id', type: dynamodb.AttributeType.STRING},
-            billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-
-        });
+        lambdaRole.addManagedPolicy(
+            iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonDynamoDBFullAccess')
+        );
+        lambdaRole.addManagedPolicy(
+            iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonECS_FullAccess')
+        );
 
         //Fargate Cluster setup
         const vpc = new ec2.Vpc(this, 'ByronVpc', {
             maxAzs: 1,
-
         });
         const cluster = new ecs.Cluster(this, 'ByronCluster', {vpc: vpc});
         cluster.addDefaultCloudMapNamespace({
@@ -45,6 +47,7 @@ export class AwsFargateEcsCdkStack extends cdk.Stack {
 
         const taskDef = new ecs.FargateTaskDefinition(this, "ByronTask", {
             memoryLimitMiB: 512,
+            taskRole: fargateRole,
             cpu: 256,
         });
 
@@ -57,11 +60,17 @@ export class AwsFargateEcsCdkStack extends cdk.Stack {
             }],
             environment: {
                 "LOCALDOMAIN": "service.local",
+                'norconex.action': 'START',
+                'norconex.elasticsearch-index-name': 'norconex',
+                'norconex.elasticsearch-nodes': 'https://search-demo-search-kog26hrflbperlmbeubxx37xgq.eu-west-1.es.amazonaws.com',
                 'norconex.max-depth': '1',
-                'norconex.name': 'Default',
+                'norconex.name': 'Norconex',
                 'norconex.start-urls': 'https://www.jettro.dev,https://www.jettro.dev/unknown.html',
-                'norconex.elasticsearch-nodes': 'http://localhost:9200',
-                'norconex.elasticsearch-index-name': 'norconex'
+                'aws.use-local': 'false',
+                'aws.region': 'eu-west-1',
+                'aws.local-uri': 'http://localhost:8000',
+                'aws.profile-name': 'local',
+                'aws.table-prefix': 'SAAS-crawler'
             },
             logging: ecs.LogDrivers.awsLogs({
                 streamPrefix: 'ByronFargateTask',
@@ -79,19 +88,35 @@ export class AwsFargateEcsCdkStack extends cdk.Stack {
             runtime: lambda.Runtime.NODEJS_12_X,
             code: lambda.Code.fromAsset('lambda'),
             handler: 'start.handler',
-            role: fargateRole,
+            role: lambdaRole,
             environment: {
                 subnets: vpc.publicSubnets.map(s => s.subnetId).join(','),
                 security_group: vpc.vpcDefaultSecurityGroup,
                 cluster: cluster.clusterName,
-                taskDef: taskDef.taskDefinitionArn
+                taskDef: taskDef.taskDefinitionArn,
+                containerName: 'ByronContainer',
+                runProcess: 'START'
+            }
+        });
+        const clean = new lambda.Function(this, 'CleanHandler', {
+            runtime: lambda.Runtime.NODEJS_12_X,
+            code: lambda.Code.fromAsset('lambda'),
+            handler: 'start.handler',
+            role: lambdaRole,
+            environment: {
+                subnets: vpc.publicSubnets.map(s => s.subnetId).join(','),
+                security_group: vpc.vpcDefaultSecurityGroup,
+                cluster: cluster.clusterName,
+                taskDef: taskDef.taskDefinitionArn,
+                containerName: 'ByronContainer',
+                runProcess: 'CLEAN'
             }
         });
         const shutdown = new lambda.Function(this, 'ShutdownHandler', {
             runtime: lambda.Runtime.NODEJS_12_X,
             code: lambda.Code.fromAsset('lambda'),
             handler: 'shutdown.handler',
-            role: fargateRole,
+            role: lambdaRole,
             environment: {
                 cluster: cluster.clusterName
             }
@@ -100,9 +125,9 @@ export class AwsFargateEcsCdkStack extends cdk.Stack {
             runtime: lambda.Runtime.NODEJS_12_X,
             code: lambda.Code.fromAsset('lambda'),
             handler: 'status.handler',
-            role: dynamoDbRole,
+            role: lambdaRole,
             environment: {
-                tableName: table.tableName
+                tableName: 'SAAS-crawler--crawler-stats'
             }
         });
 
@@ -111,6 +136,8 @@ export class AwsFargateEcsCdkStack extends cdk.Stack {
 
         const startMethod = api.root.addResource('start');
         startMethod.addMethod('GET', new apigateway.LambdaIntegration(start))
+        const cleanMethod = api.root.addResource('clean');
+        cleanMethod.addMethod('GET', new apigateway.LambdaIntegration(clean))
         const shutdownMethod = api.root.addResource('shutdown');
         shutdownMethod.addMethod('GET', new apigateway.LambdaIntegration(shutdown))
         const statusMethod = api.root.addResource('status');

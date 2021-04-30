@@ -5,6 +5,8 @@ const task = process.env.taskDef;
 const cluster = process.env.cluster;
 const subnets = process.env.subnets;
 const security_group = process.env.security_group;
+const containerName = process.env.containerName;
+const runProcess = process.env.runProcess;
 
 exports.handler = async function (events) {
     console.log("START");
@@ -17,7 +19,7 @@ exports.handler = async function (events) {
                 if (data && data.taskArns && data.taskArns.length > 0) {
                     buildResponse(resolve, 500, "Already indexing task running");
                 } else {
-                    let params = buildRunTaskParams();
+                    let params = buildRunTaskParams(events);
                     ecs.runTask(params, function (err, data) {
                         let response;
                         let statusCode;
@@ -28,7 +30,12 @@ exports.handler = async function (events) {
                         } else {
                             //todo Fix start call to fargate container / Decide on auto start in container
                             console.log(data)
-                            response = "Started a new indexing task"
+                            if (runProcess === 'START') {
+                                response = "Started a new indexing task"
+                            } else {
+                                response = "Started a new cleaning task"
+                            }
+
                             statusCode = 200
                         }
                         buildResponse(resolve, statusCode, response)
@@ -40,7 +47,7 @@ exports.handler = async function (events) {
         })
     })
 
-    function buildRunTaskParams() {
+    function buildRunTaskParams(events) {
         return {
             taskDefinition: task,
             cluster: cluster,
@@ -51,6 +58,16 @@ exports.handler = async function (events) {
                     subnets: [subnets],
                     securityGroups: [security_group]
                 }
+            },
+            overrides: {
+                containerOverrides: [
+                    {
+                        name: containerName,
+                        environment: [{
+                            name: 'norconex.action',
+                            value: runProcess
+                        }]
+                    }]
             },
             launchType: 'FARGATE'
         }
