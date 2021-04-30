@@ -18,6 +18,8 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.SpringApplication;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
@@ -33,13 +35,16 @@ public class NorconexService {
 
     private HttpCollector collector;
 
+    private ApplicationContext context;
+
     @Autowired
     public NorconexService(NorconexProperties norconexProperties,
                            DynamoDBProperties dynamoDBProperties,
-                           DynamoDBRepository dynamoDBRepository) {
+                           DynamoDBRepository dynamoDBRepository, ApplicationContext context) {
         this.norconexProperties = norconexProperties;
         this.dynamoDBProperties = dynamoDBProperties;
         this.dynamoDBRepository = dynamoDBRepository;
+        this.context = context;
     }
 
     public void start() {
@@ -71,7 +76,7 @@ public class NorconexService {
 
     }
 
-    @PostConstruct
+//    @PostConstruct
     public void afterConstruct() {
 
         HttpCrawlerConfig crawlerConfig = new HttpCrawlerConfig();
@@ -117,6 +122,7 @@ public class NorconexService {
             protected void onCrawlerShutdown(CrawlerEvent event) {
                 CrawlerMonitor monitor = event.getSource().getMonitor();
                 dynamoDBRepository.storeCrawlerStats(norconexProperties.getName(), monitor.getEventCounts());
+//                SpringApplication.exit(context, () -> 0);
             }
         };
     }

@@ -69,7 +69,7 @@ public class DynamoDBRepository {
         this.dynamoDB = new DynamoDB(this.client);
 
         Table table = dynamoDB.getTable(getCrawlerStatsTableName());
-        if (null == table || table.getDescription() == null) {
+        if (null == table || table.describe() == null) {
             createCrawlerStatsTable();
         }
     }
