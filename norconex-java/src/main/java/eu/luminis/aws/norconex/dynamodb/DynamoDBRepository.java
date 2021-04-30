@@ -69,9 +69,14 @@ public class DynamoDBRepository {
         this.dynamoDB = new DynamoDB(this.client);
 
         Table table = dynamoDB.getTable(getCrawlerStatsTableName());
-        if (null == table || table.describe() == null) {
-            createCrawlerStatsTable();
+        try {
+            if (null != table && table.describe() != null) {
+                return;
+            }
+        } catch (ResourceNotFoundException e) {
+            LOGGER.info("Table for crawler stats does not exist.");
         }
+        createCrawlerStatsTable();
     }
 
     @PreDestroy

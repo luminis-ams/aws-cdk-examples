@@ -16,6 +16,5 @@ public class NorconexApplication {
         ConfigurableApplicationContext run = SpringApplication.run(NorconexApplication.class, args);
         NorconexService bean = run.getBean(NorconexService.class);
         bean.afterConstruct();
-        SpringApplication.exit(run, () -> 0);
     }
 }

@@ -1,5 +1,7 @@
 package eu.luminis.aws.norconex;
 
+import com.norconex.collector.core.CollectorEvent;
+import com.norconex.collector.core.CollectorLifeCycleListener;
 import com.norconex.collector.core.crawler.CrawlerEvent;
 import com.norconex.collector.core.crawler.CrawlerLifeCycleListener;
 import com.norconex.collector.core.monitor.CrawlerMonitor;
@@ -66,17 +68,20 @@ public class NorconexService {
     public void stop() {
         if (null != this.collector) {
             this.collector.stop();
+            int exit = SpringApplication.exit(context, () -> -1);
+            System.exit(exit);
         }
     }
 
     public void clean() {
         if (null != this.collector) {
             this.collector.clean();
+            int exit = SpringApplication.exit(context, () -> -1);
+            System.exit(exit);
         }
 
     }
 
-//    @PostConstruct
     public void afterConstruct() {
 
         HttpCrawlerConfig crawlerConfig = new HttpCrawlerConfig();
@@ -92,7 +97,15 @@ public class NorconexService {
         collectorConfig.setId(norconexProperties.getName() + "Collector");
         collectorConfig.setCrawlerConfigs(crawlerConfig);
 
+
         collectorConfig.addEventListeners(createCrawlerLifeCycleListener());
+        collectorConfig.addEventListeners(new CollectorLifeCycleListener() {
+            @Override
+            protected void onCollectorRunEnd(CollectorEvent event) {
+                int exit = SpringApplication.exit(context, () -> -1);
+                System.exit(exit);
+            }
+        });
 
         this.collector = new HttpCollector(collectorConfig);
 
@@ -118,11 +131,11 @@ public class NorconexService {
     @NotNull
     private CrawlerLifeCycleListener createCrawlerLifeCycleListener() {
         return new CrawlerLifeCycleListener() {
+
             @Override
             protected void onCrawlerShutdown(CrawlerEvent event) {
                 CrawlerMonitor monitor = event.getSource().getMonitor();
                 dynamoDBRepository.storeCrawlerStats(norconexProperties.getName(), monitor.getEventCounts());
-//                SpringApplication.exit(context, () -> 0);
             }
         };
     }
