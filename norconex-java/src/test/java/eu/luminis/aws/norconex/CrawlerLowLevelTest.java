@@ -2,15 +2,11 @@ package eu.luminis.aws.norconex;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.TypeAdapter;
-import com.google.gson.stream.JsonReader;
-import com.google.gson.stream.JsonWriter;
 import com.norconex.collector.core.doc.CrawlDocInfo;
 import com.norconex.collector.http.doc.HttpDocInfo;
-import eu.luminis.aws.norconex.dynamodb.ZonedDateTimeConverter;
+import eu.luminis.norconex.datastore.dynamodb.ZonedDateTimeConverter;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
 import java.time.ZonedDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

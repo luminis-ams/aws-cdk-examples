@@ -1,20 +1,31 @@
 package eu.luminis.aws.norconex;
 
+import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.annotation.ComponentScan;
 
 @SpringBootApplication(
         exclude = {MongoAutoConfiguration.class}
 )
 @EnableConfigurationProperties
-public class NorconexApplication {
+@ComponentScan({"eu.luminis.aws.norconex", "eu.luminis.norconex.datastore.dynamodb"})
+public class NorconexApplication implements CommandLineRunner {
+
+    private final NorconexService norconexService;
+
+    public NorconexApplication(NorconexService norconexService) {
+        this.norconexService = norconexService;
+    }
+
     public static void main(String[] args) {
-        ConfigurableApplicationContext run = SpringApplication.run(NorconexApplication.class, args);
-        NorconexService bean = run.getBean(NorconexService.class);
-        bean.afterConstruct();
+        SpringApplication.run(NorconexApplication.class, args);
+    }
+
+    @Override
+    public void run(String... args) throws Exception {
+        this.norconexService.execute();
     }
 }
