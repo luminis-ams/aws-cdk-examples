@@ -1,6 +1,7 @@
 package eu.luminis.aws.norconex;
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
+import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.norconex.collector.core.CollectorEvent;
 import com.norconex.collector.core.CollectorLifeCycleListener;
 import com.norconex.collector.core.crawler.CrawlerEvent;
@@ -16,6 +17,7 @@ import com.norconex.importer.ImporterConfig;
 import com.norconex.importer.handler.tagger.impl.DOMTagger;
 import eu.luminis.norconex.datastore.dynamodb.DynamoDBProperties;
 import eu.luminis.norconex.datastore.dynamodb.DynamoDBRepository;
+import eu.luminis.norconex.datastore.dynamodb.DynamoDBTableUtil;
 import eu.luminis.norconex.datastore.dynamodb.DynamoDataStoreEngine;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -51,34 +53,17 @@ public class NorconexService {
         this.dynamoDBRepository = dynamoDBRepository;
         this.client = client;
         this.context = context;
+
+        if (LOGGER.isInfoEnabled()) {
+            LOGGER.info("Local URI: {}", dynamoDBProperties.getLocalUri());
+            LOGGER.info("Use local: {}", dynamoDBProperties.getUseLocal());
+            LOGGER.info("Profile name: {}", dynamoDBProperties.getProfileName());
+            LOGGER.info("Region: {}", dynamoDBProperties.getRegion());
+            LOGGER.info("Table prefix: {}", dynamoDBProperties.getTablePrefix());
+        }
     }
 
     public void execute() {
-        HttpCrawlerConfig crawlerConfig = new HttpCrawlerConfig();
-        crawlerConfig.setId(norconexProperties.getName() + "Crawler");
-        crawlerConfig.setStartURLs(norconexProperties.getStartUrls());
-        crawlerConfig.setImporterConfig(createImporterConfiguration());
-        crawlerConfig.setUrlCrawlScopeStrategy(createCrawlerDomainSrategy());
-        crawlerConfig.setMaxDepth(norconexProperties.getMaxDepth());
-        crawlerConfig.setDataStoreEngine(new DynamoDataStoreEngine(dynamoDBProperties, client));
-        crawlerConfig.setCommitters(createElasticsearchCommitter());
-
-        HttpCollectorConfig collectorConfig = new HttpCollectorConfig();
-        collectorConfig.setId(norconexProperties.getName() + "Collector");
-        collectorConfig.setCrawlerConfigs(crawlerConfig);
-
-
-        collectorConfig.addEventListeners(createCrawlerLifeCycleListener());
-        collectorConfig.addEventListeners(new CollectorLifeCycleListener() {
-            @Override
-            protected void onCollectorRunEnd(CollectorEvent event) {
-                int exit = SpringApplication.exit(context, () -> -1);
-                System.exit(exit);
-            }
-        });
-
-        this.collector = new HttpCollector(collectorConfig);
-
         switch (norconexProperties.getAction()) {
             case START:
                 this.start();
@@ -92,19 +77,34 @@ public class NorconexService {
     }
 
     public void start() {
-        if (null != this.collector) {
-            this.collector.start();
-        } else {
-            LOGGER.error("The collector is not running, we cannot start the crawl.");
-        }
+        HttpCrawlerConfig crawlerConfig = new HttpCrawlerConfig();
+        crawlerConfig.setId(norconexProperties.getName() + "Crawler");
+        crawlerConfig.setStartURLs(norconexProperties.getStartUrls());
+        crawlerConfig.setImporterConfig(createImporterConfiguration());
+        crawlerConfig.setUrlCrawlScopeStrategy(createCrawlerDomainSrategy());
+        crawlerConfig.setMaxDepth(norconexProperties.getMaxDepth());
+        crawlerConfig.setDataStoreEngine(new DynamoDataStoreEngine(dynamoDBProperties, client));
+        crawlerConfig.setCommitters(createElasticsearchCommitter());
+
+        HttpCollectorConfig collectorConfig = new HttpCollectorConfig();
+        collectorConfig.setId(norconexProperties.getName() + "Collector");
+        collectorConfig.setCrawlerConfigs(crawlerConfig);
+
+        collectorConfig.addEventListeners(createCrawlerLifeCycleListener());
+        collectorConfig.addEventListeners(new CollectorLifeCycleListener() {
+            @Override
+            protected void onCollectorRunEnd(CollectorEvent event) {
+                int exit = SpringApplication.exit(context, () -> -1);
+                System.exit(exit);
+            }
+        });
+
+        this.collector = new HttpCollector(collectorConfig);
+        this.collector.start();
     }
 
     public void clean() {
-        if (null != this.collector) {
-            this.collector.clean();
-        } else {
-            LOGGER.error("The collector is not running, we cannot clean the crawl.");
-        }
+        DynamoDBTableUtil.cleanAllTables(new DynamoDB(client),dynamoDBProperties);
         int exit = SpringApplication.exit(context, () -> -1);
         System.exit(exit);
     }
