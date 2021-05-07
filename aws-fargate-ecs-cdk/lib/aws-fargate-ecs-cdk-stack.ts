@@ -2,11 +2,11 @@ import * as cdk from '@aws-cdk/core';
 import * as ec2 from "@aws-cdk/aws-ec2";
 import * as ecr from "@aws-cdk/aws-ecr";
 import * as ecs from "@aws-cdk/aws-ecs";
-import {Protocol} from "@aws-cdk/aws-ecs";
 import * as logs from '@aws-cdk/aws-logs';
-import * as apigateway from "@aws-cdk/aws-apigateway";
+import * as dynamodb from '@aws-cdk/aws-dynamodb';
+import * as gateway from "@aws-cdk/aws-apigatewayv2";
+import * as gatewayinteg from "@aws-cdk/aws-apigatewayv2-integrations";
 import * as lambda from "@aws-cdk/aws-lambda";
-import * as dynamodb from "@aws-cdk/aws-dynamodb";
 import * as iam from "@aws-cdk/aws-iam";
 
 export class AwsFargateEcsCdkStack extends cdk.Stack {
@@ -56,7 +56,7 @@ export class AwsFargateEcsCdkStack extends cdk.Stack {
             portMappings: [{
                 containerPort: 8080,
                 hostPort: 8080,
-                protocol: Protocol.TCP,
+                protocol: ecs.Protocol.TCP,
             }],
             environment: {
                 "LOCALDOMAIN": "service.local",
@@ -80,10 +80,30 @@ export class AwsFargateEcsCdkStack extends cdk.Stack {
         new ecs.FargateService(this, 'ByronFargateService', {
             cluster: cluster,
             taskDefinition: taskDef,
+            desiredCount: 0
         });
 
 
         //Lambda setup
+        const websocketConnectionsTable = new dynamodb.Table(this, 'WebsocketConnections', {
+            partitionKey: {
+                name: 'connectionId',
+                type: dynamodb.AttributeType.STRING
+            },
+            billingMode: dynamodb.BillingMode.PAY_PER_REQUEST
+        });
+        const websocketConnectHandler = new lambda.Function(this, 'websocketConnectHandler', {
+            runtime: lambda.Runtime.NODEJS_12_X,
+            code: lambda.Code.fromAsset('lambda/websocket'),
+            handler: 'connect.handler'
+        })
+        const websocketDisconnectHandler = new lambda.Function(this, 'websocketDisconnectHandler', {
+            runtime: lambda.Runtime.NODEJS_12_X,
+            code: lambda.Code.fromAsset('lambda/websocket'),
+            handler: 'disconnect.handler'
+        })
+        websocketConnectionsTable.grantReadWriteData(websocketConnectHandler)
+
         const start = new lambda.Function(this, 'StartHandler', {
             runtime: lambda.Runtime.NODEJS_12_X,
             code: lambda.Code.fromAsset('lambda'),
@@ -131,19 +151,62 @@ export class AwsFargateEcsCdkStack extends cdk.Stack {
             }
         });
 
+
+        const webSocketApi = new gateway.WebSocketApi(this, 'ByronWebsocketApi', {
+            connectRouteOptions: {
+                integration: new gatewayinteg.LambdaWebSocketIntegration({
+                    handler: websocketConnectHandler
+                })
+            },
+            disconnectRouteOptions: {
+                integration: new gatewayinteg.LambdaWebSocketIntegration({
+                    handler: websocketDisconnectHandler
+                })
+            },
+        });
+
+        const apiStage = new gateway.WebSocketStage(this, 'DevStage', {
+            webSocketApi,
+            stageName: 'dev',
+            autoDeploy: true,
+        });
+
         //Api Gateway
-        const api = new apigateway.RestApi(this, 'ByronApi', {});
 
-        const startMethod = api.root.addResource('start');
-        startMethod.addMethod('GET', new apigateway.LambdaIntegration(start))
-        const cleanMethod = api.root.addResource('clean');
-        cleanMethod.addMethod('GET', new apigateway.LambdaIntegration(clean))
-        const shutdownMethod = api.root.addResource('shutdown');
-        shutdownMethod.addMethod('GET', new apigateway.LambdaIntegration(shutdown))
-        const statusMethod = api.root.addResource('status');
-        statusMethod.addMethod('GET', new apigateway.LambdaIntegration(status))
-
-
+        const api = new gateway.HttpApi(this, "ByronApi");
+        api.addRoutes(
+            {
+                path: '/start',
+                methods: [gateway.HttpMethod.GET],
+                integration: new gatewayinteg.LambdaProxyIntegration({
+                    handler: start
+                })
+            }
+        )
+        api.addRoutes(
+            {
+                path: '/clean',
+                methods: [gateway.HttpMethod.GET],
+                integration: new gatewayinteg.LambdaProxyIntegration({
+                    handler: clean
+                })
+            })
+        api.addRoutes(
+            {
+                path: '/status',
+                methods: [gateway.HttpMethod.GET],
+                integration: new gatewayinteg.LambdaProxyIntegration({
+                    handler: status
+                })
+            })
+        api.addRoutes(
+            {
+                path: '/shutdown',
+                methods: [gateway.HttpMethod.GET],
+                integration: new gatewayinteg.LambdaProxyIntegration({
+                    handler: shutdown
+                })
+            })
     }
 
 }
