@@ -55,6 +55,12 @@ public class NorconexService {
         this.context = context;
 
         if (LOGGER.isInfoEnabled()) {
+            LOGGER.info("Norconex action: {}", norconexProperties.getAction());
+            LOGGER.info("Norconex Elasticsearch Index Name : {}", norconexProperties.getElasticsearchIndexName());
+            LOGGER.info("Norconex Elasticsearch Nodes: {}", norconexProperties.getElasticsearchNodes());
+            LOGGER.info("Norconex Max depth: {}", norconexProperties.getMaxDepth());
+            LOGGER.info("Norconex Start Urls: {}", norconexProperties.getStartUrls());
+
             LOGGER.info("Local URI: {}", dynamoDBProperties.getLocalUri());
             LOGGER.info("Use local: {}", dynamoDBProperties.getUseLocal());
             LOGGER.info("Profile name: {}", dynamoDBProperties.getProfileName());
