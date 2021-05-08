@@ -23,8 +23,8 @@ export class AwsEsCdkStack extends cdk.Stack {
     constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
         super(scope, id, props);
 
-        const applicationPrefix = "sample";
-        const esDomainName = "samplecluster"
+        const applicationPrefix = "saasjettro";
+        const esDomainName = "saascluster"
 
         /**
          * Tags are added to all child components, using a tag we can easily detect what components belong to a stack
@@ -155,7 +155,7 @@ export class AwsEsCdkStack extends cdk.Stack {
             enableVersionUpgrade: true,
             capacity: {
                 dataNodes: 1,
-                dataNodeInstanceType: "t2.small.elasticsearch",
+                dataNodeInstanceType: "t3.small.elasticsearch",
             },
             ebs: {
                 volumeSize: 10
@@ -175,7 +175,13 @@ export class AwsEsCdkStack extends cdk.Stack {
                 actions: ["es:ESHttp*"],
                 principals: [new AnyPrincipal()],
                 resources: [domainArn],
-            })
+            }),
+                new PolicyStatement({
+                    effect: Effect.ALLOW,
+                    actions: ["es:ESHttp*"],
+                    principals: [new AnyPrincipal()],
+                    resources: ["arn:aws:iam::044915237328:role/AwsFargateEcsCdkStack-fargateRole19726F4B-PUQG91H6LBIB"],
+                })
             ],
             cognitoKibanaAuth: {
                 identityPoolId: idPool.ref,
@@ -277,7 +283,8 @@ export class AwsEsCdkStack extends cdk.Stack {
                         "body": {
                             "backend_roles": [
                                 esAdminUserRole.roleArn,
-                                lambdaServiceRole.roleArn
+                                lambdaServiceRole.roleArn,
+                                "arn:aws:iam::044915237328:role/AwsFargateEcsCdkStack-fargateRole19726F4B-PUQG91H6LBIB"
                             ],
                             "hosts": [],
                             "users": []
@@ -289,7 +296,8 @@ export class AwsEsCdkStack extends cdk.Stack {
                         "body": {
                             "backend_roles": [
                                 lambdaServiceRole.roleArn,
-                                esAdminUserRole.roleArn
+                                esAdminUserRole.roleArn,
+                                "arn:aws:iam::044915237328:role/AwsFargateEcsCdkStack-fargateRole19726F4B-PUQG91H6LBIB"
                             ],
                             "hosts": [],
                             "users": []
