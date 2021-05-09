@@ -11,6 +11,7 @@ import com.norconex.collector.http.HttpCollector;
 import com.norconex.collector.http.HttpCollectorConfig;
 import com.norconex.collector.http.crawler.HttpCrawlerConfig;
 import com.norconex.collector.http.crawler.URLCrawlScopeStrategy;
+import com.norconex.collector.http.delay.impl.GenericDelayResolver;
 import com.norconex.committer.elasticsearch.ElasticsearchCommitter;
 import com.norconex.commons.lang.map.PropertySetter;
 import com.norconex.importer.ImporterConfig;
@@ -26,6 +27,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
 import javax.annotation.PreDestroy;
 import java.util.Arrays;
@@ -85,18 +87,26 @@ public class NorconexService {
     public void start() {
         HttpCrawlerConfig crawlerConfig = new HttpCrawlerConfig();
         crawlerConfig.setId(norconexProperties.getName() + "Crawler");
-        crawlerConfig.setStartURLs(norconexProperties.getStartUrls());
+        if (!CollectionUtils.isEmpty(norconexProperties.getStartUrls())) {
+            crawlerConfig.setStartURLs(norconexProperties.getStartUrls());
+        }
+        if (!CollectionUtils.isEmpty(norconexProperties.getSitemapUrls())) {
+            crawlerConfig.setStartSitemapURLs();
+        }
         crawlerConfig.setImporterConfig(createImporterConfiguration());
         crawlerConfig.setUrlCrawlScopeStrategy(createCrawlerDomainSrategy());
         crawlerConfig.setMaxDepth(norconexProperties.getMaxDepth());
         crawlerConfig.setDataStoreEngine(new DynamoDataStoreEngine(dynamoDBProperties, client));
         crawlerConfig.setCommitters(createElasticsearchCommitter());
+        crawlerConfig.setDelayResolver(createdelayResolver());
 
         HttpCollectorConfig collectorConfig = new HttpCollectorConfig();
         collectorConfig.setId(norconexProperties.getName() + "Collector");
         collectorConfig.setCrawlerConfigs(crawlerConfig);
 
         collectorConfig.addEventListeners(createCrawlerLifeCycleListener());
+
+        // Make sure we stop when the run of the collector is done
         collectorConfig.addEventListeners(new CollectorLifeCycleListener() {
             @Override
             protected void onCollectorRunEnd(CollectorEvent event) {
@@ -107,6 +117,13 @@ public class NorconexService {
 
         this.collector = new HttpCollector(collectorConfig);
         this.collector.start();
+    }
+
+    @NotNull
+    private GenericDelayResolver createdelayResolver() {
+        GenericDelayResolver genericDelayResolver = new GenericDelayResolver();
+        genericDelayResolver.setDefaultDelay(2000);
+        return genericDelayResolver;
     }
 
     public void clean() {
