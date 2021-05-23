@@ -16,13 +16,13 @@ export class AwsEsGatewayLambdaRequestResponseStack extends cdk.Stack {
         });
         const search = new lambda.Function(this, 'LambdaSearchHandler', {
             runtime: lambda.Runtime.NODEJS_12_X,
-            code: lambda.Code.fromAsset('lambda'),
+            code: lambda.Code.fromAsset('lambda/search'),
             handler: 'search.handler',
             role: role
         });
         const autocomplete = new lambda.Function(this, 'LambdaAutocompleteHandler', {
             runtime: lambda.Runtime.NODEJS_12_X,
-            code: lambda.Code.fromAsset('lambda'),
+            code: lambda.Code.fromAsset('lambda/autocomplete'),
             handler: 'autocomplete.handler',
             role: role
         });
