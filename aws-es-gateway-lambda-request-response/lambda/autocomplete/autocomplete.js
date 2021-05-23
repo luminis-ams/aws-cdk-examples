@@ -45,7 +45,7 @@ exports.handler = async function (event) {
                 responseBody += chunk;
             });
             response.on('end', function (_chunk) {
-                resolve(responseBody);
+                resolve(parseResponse(responseBody));
             });
         }, function (error) {
             reject(error);
@@ -56,5 +56,16 @@ exports.handler = async function (event) {
         return esb.boolQuery()
             .should(esb.matchQuery("autocomplete_field.prefix", string).operator("and").analyzer("standard").boost(2))
             .should(esb.matchQuery("autocomplete_field", string).operator("and").analyzer("standard"));
+    }
+
+    function parseResponse(responseBody) {
+        let matches = responseBody.match(/<em>\w*<\/em>/g)
+        let replaced = []
+        for (const match of matches) {
+            let replace = match.replace("<em>", "");
+            replace = replace.replace("</em>", "")
+            replaced.push(replace)
+        }
+        return [...new Set(replaced)];
     }
 };
