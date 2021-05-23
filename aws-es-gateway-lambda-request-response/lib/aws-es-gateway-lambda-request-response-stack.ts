@@ -15,28 +15,58 @@ export class AwsEsGatewayLambdaRequestResponseStack extends cdk.Stack {
             mutable: false,
         });
         const search = new lambda.Function(this, 'LambdaSearchHandler', {
-            runtime: lambda.Runtime.NODEJS_10_X,
+            runtime: lambda.Runtime.NODEJS_12_X,
             code: lambda.Code.fromAsset('lambda'),
             handler: 'search.handler',
             role: role
         });
+        const autocomplete = new lambda.Function(this, 'LambdaAutocompleteHandler', {
+            runtime: lambda.Runtime.NODEJS_12_X,
+            code: lambda.Code.fromAsset('lambda'),
+            handler: 'autocomplete.handler',
+            role: role
+        });
 
-        const api = new apigateway.RestApi(this, 'byron-aws-es-gateway-lambda', {});
-        const resource = api.root.addResource('v1');
+        const api = new apigateway.RestApi(this, 'byron-aws-es-gateway-lambda', {
+            defaultCorsPreflightOptions: {
+                allowOrigins: apigateway.Cors.ALL_ORIGINS,
+                allowMethods: apigateway.Cors.ALL_METHODS
+            },
+            deployOptions: {
+                stageName: "v1"
+            }
+        });
+
+        const searchResource = api.root.addResource('search');
+        const autocompleteResource = api.root.addResource('autocomplete');
 
         let responseTemplate = fs.readFileSync(path.resolve(__dirname, 'templates/response_template_mapping.vm'), 'utf8')
-
-        const integration = new apigateway.LambdaIntegration(search, {
+        const searchIntegration = new apigateway.LambdaIntegration(search, {
             proxy: false,
             integrationResponses: [
                 {
                     statusCode: "200",
                     responseTemplates: {
                         'application/json': responseTemplate
+                    },
+                    responseParameters: {
+                        'method.response.header.Access-Control-Allow-Origin': "'*'"
                     }
                 }
             ]
         });
+
+        const autocompleteIntegration = new apigateway.LambdaIntegration(autocomplete, {
+            proxy: false,
+            integrationResponses: [
+                {
+                    statusCode: "200",
+                    responseParameters: {
+                        'method.response.header.Access-Control-Allow-Origin': "'*'"
+                    }
+                }
+            ]
+        })
 
         let requestModel = api.addModel('SearchRequest', {
             description: "Default SearchRequest",
@@ -79,15 +109,23 @@ export class AwsEsGatewayLambdaRequestResponseStack extends cdk.Stack {
             }
         });
 
-        resource.addMethod('POST', integration, {
-            requestValidatorOptions: {
-                requestValidatorName: 'test-validator',
-                validateRequestBody: true,
-                validateRequestParameters: false,
-            },
+        searchResource.addMethod('POST', searchIntegration, {
             requestModels: {
                 "application/json": requestModel
             },
+            methodResponses: [
+                {
+                    statusCode: "200",
+                    responseParameters: {
+                        'method.response.header.Content-Type': true,
+                        'method.response.header.Access-Control-Allow-Origin': true,
+                        'method.response.header.Access-Control-Allow-Credentials': true
+                    }
+                }
+            ]
+        })
+
+        autocompleteResource.addMethod('POST', autocompleteIntegration, {
             methodResponses: [
                 {
                     statusCode: "200",
