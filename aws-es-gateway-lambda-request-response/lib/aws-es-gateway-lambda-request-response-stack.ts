@@ -40,14 +40,14 @@ export class AwsEsGatewayLambdaRequestResponseStack extends cdk.Stack {
         const searchResource = api.root.addResource('search');
         const autocompleteResource = api.root.addResource('autocomplete');
 
-        let responseTemplate = fs.readFileSync(path.resolve(__dirname, 'templates/response_template_mapping.vm'), 'utf8')
+        let searchResponseTemplate = fs.readFileSync(path.resolve(__dirname, 'templates/search_response_template_mapping.vm'), 'utf8')
         const searchIntegration = new apigateway.LambdaIntegration(search, {
             proxy: false,
             integrationResponses: [
                 {
                     statusCode: "200",
                     responseTemplates: {
-                        'application/json': responseTemplate
+                        'application/json': searchResponseTemplate
                     },
                     responseParameters: {
                         'method.response.header.Access-Control-Allow-Origin': "'*'"
@@ -56,11 +56,15 @@ export class AwsEsGatewayLambdaRequestResponseStack extends cdk.Stack {
             ]
         });
 
+        let autocompleteResponseTemplate = fs.readFileSync(path.resolve(__dirname, 'templates/autocomplete_response_template_mapping.vm'), 'utf8')
         const autocompleteIntegration = new apigateway.LambdaIntegration(autocomplete, {
             proxy: false,
             integrationResponses: [
                 {
                     statusCode: "200",
+                    responseTemplates: {
+                        'application/json': autocompleteResponseTemplate
+                    },
                     responseParameters: {
                         'method.response.header.Access-Control-Allow-Origin': "'*'"
                     }
