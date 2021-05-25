@@ -1,4 +1,3 @@
-#set($inputRoot = $util.parseJson($input.path('$')))
 {
-    "completions" : $inputRoot
+    "completions" : $input.path('$')
 }

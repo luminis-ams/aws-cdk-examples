@@ -37,7 +37,7 @@ exports.handler = async function (event) {
         if (event.filters) {
             let filters = [];
             for (const filter of event.filters) {
-                let fieldName = aggregations.get(filter.name);
+                let fieldName = aggregations[filter.name];
                 console.log(fieldName)
                 filters.push(esb.termsQuery(fieldName, filter.value))
             }
