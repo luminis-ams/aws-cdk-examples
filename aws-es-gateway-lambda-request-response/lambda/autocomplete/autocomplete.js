@@ -64,8 +64,13 @@ exports.handler = async function (event) {
         for (const match of matches) {
             let replace = match.replace("<em>", "");
             replace = replace.replace("</em>", "")
-            replaced.push(replace)
+            replaced.push(capitalize(replace))
         }
         return [...new Set(replaced)];
     }
+
+    function capitalize(s) {
+        return s[0].toUpperCase() + s.slice(1);
+    }
+
 };
