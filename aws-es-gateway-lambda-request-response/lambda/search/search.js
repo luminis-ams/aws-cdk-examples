@@ -48,7 +48,7 @@ exports.handler = async function (event) {
 
         searchRequest.query(query)
         searchRequest.size(event.size)
-        searchRequest.from(event.from)
+        searchRequest.from(event.page)
         searchRequest.suggestText(event.searchString)
         searchRequest.suggest(esb.termSuggester("DESCRIPTION_TERM", "description"))
         searchRequest.suggest(esb.termSuggester("TITLE_TERM", "title"))
