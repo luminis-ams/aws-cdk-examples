@@ -1,0 +1,26 @@
+@startuml
+'https://plantuml.com/component-diagram
+
+!include ../global-config.puml
+
+title "Overall Architecture of the Crawler"
+
+frame "Docker" $BLUE_GREY_3 {
+  [Spring Boot] -> [Norconex]
+}
+
+database "DynamoDB" {
+}
+
+database "AWS OpenSearch" as AWSOS {
+}
+
+cloud "WWW" {
+    [Website]
+}
+
+Norconex -r-> Website
+Norconex --> DynamoDB
+Norconex --> AWSOS
+
+@enduml

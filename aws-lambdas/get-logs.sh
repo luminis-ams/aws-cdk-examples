@@ -1,5 +1,5 @@
 #!/bin/bash
-lambda_name="AwsLambdasStack-JettroHelloLogsLambdaA3F63B77-130WFH89QU9AN"
+lambda_name="AwsLambdasStack-LambdaDemoHelloLogsLambdaC392FFA1-ZDD9FVJ6V754"
 payload=$(echo '{"say": "Hello", "to": "Lambda" }' | openssl base64)
 aws lambda invoke --function-name $lambda_name out --payload "$payload"
 sed -i'' -e 's/"//g' out

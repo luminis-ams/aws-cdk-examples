@@ -1,0 +1,52 @@
+
+!$WHITE       = "#FFF"
+!$BLACK       = "#000"
+!$LUM_ORANGE  = "#F7931D"
+!$LUM_BLUE    = "#44A2BC"
+!$LUM_PURPLE  = "#3D183D"
+!$BLUE_GREY_1 = "#404166"
+!$BLUE_GREY_2 = "#29607B"
+!$BLUE_GREY_3 = "#7F9BAE"
+!$BLUE_GREY_4 = "#D1D2D4"
+
+skinparam defaultFontName       "Rockwell"
+skinparam defaultFontSize       20
+skinparam dpi                   100
+skinparam shadowing             false
+skinparam roundcorner           8
+skinparam ParticipantPadding    40
+skinparam BoxPadding            40
+skinparam Padding               5
+skinparam ArrowColor            $BLUE_GREY_1
+
+skinparam component {
+  FontColor $BLUE_GREY_1
+  BorderColor $WHITE
+  BackgroundColor $BLUE_GREY_4
+
+  ArrowFontName Impact
+  ArrowColor #FF6655
+  ArrowFontColor #777777
+  StereotypeFontName Rockwell
+  StereotypeFontColor Yellow
+  StereotypeFontSize 20
+}
+
+skinparam package {
+  FontSize 13
+  FontName Rockwell
+  BorderColor 202044
+  BackgroundColor 404166
+  FontColor White
+  ArrowFontName Impact
+  ArrowColor #FF6655
+  ArrowFontColor #777777
+}
+
+skinparam database {
+  FontSize 13
+  FontName Rockwell
+  BorderColor $BLUE_GREY_2
+  BackgroundColor $BLUE_GREY_4
+  FontColor $BLUE_GREY_2
+}

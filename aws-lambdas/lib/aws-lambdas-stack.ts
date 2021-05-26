@@ -10,7 +10,7 @@ export class AwsLambdasStack extends cdk.Stack {
     constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
         super(scope, id, props);
 
-        const helloLogsLambda = new lambda.Function(this, "JettroHelloLogsLambda", {
+        const helloLogsLambda = new lambda.Function(this, "LambdaDemo_HelloLogsLambda", {
             runtime: lambda.Runtime.NODEJS_12_X,
             handler: "index.handler",
             code: lambda.Code.fromInline(`
@@ -18,7 +18,7 @@ export class AwsLambdasStack extends cdk.Stack {
                 console.log(event.say + " " + event.to + "!");
                 return context.logStreamName;
             };
-      `),
+            `),
         });
 
         new CfnOutput(this, 'CreateLogLambdaOutput', {
@@ -26,13 +26,13 @@ export class AwsLambdasStack extends cdk.Stack {
             value: helloLogsLambda.functionName,
         });
 
-        const snsTopic = new sns.Topic(this, 'LambdaSnsTopic', {
+        const snsTopic = new sns.Topic(this, 'LambdaDemo_SnsTopic', {
             displayName: 'Lambda SNS Topic to send email',
         });
 
         snsTopic.addSubscription(new subs.EmailSubscription("jettro@coenradie.com"));
 
-        const sendToSNSLambda = new lambda.Function(this, 'SendToSNSLambda', {
+        const sendToSNSLambda = new lambda.Function(this, 'LambdaDemo_SendToSNSLambda', {
             runtime: lambda.Runtime.NODEJS_12_X,
             code: lambda.Code.fromAsset('./lambdas/lambda-send-message'),
             handler: 'send-message.handler',
@@ -54,7 +54,7 @@ export class AwsLambdasStack extends cdk.Stack {
             compatibleRuntimes: [lambda.Runtime.NODEJS_12_X],
         });
 
-        const gatewayLambda = new lambda.Function(this, 'GatewaySendToSNSLambda', {
+        const gatewayLambda = new lambda.Function(this, 'LambdaDemo_GatewaySendToSNSLambda', {
             runtime: lambda.Runtime.NODEJS_12_X,
             code: lambda.Code.fromAsset('./lambdas/lambda-gateway'),
             handler: 'index.handler',
@@ -62,12 +62,12 @@ export class AwsLambdasStack extends cdk.Stack {
                 SNS_TOPIC_ARN: snsTopic.topicArn,
                 REGION: this.region,
             },
-            layers:[responseLayer],
+            layers: [responseLayer],
         });
 
         snsTopic.grantPublish(gatewayLambda);
 
-        new apigateway.LambdaRestApi(this, 'JettroLambdaApi', {
+        new apigateway.LambdaRestApi(this, 'LambdaDemo_LambdaApi', {
             handler: gatewayLambda,
         });
     }

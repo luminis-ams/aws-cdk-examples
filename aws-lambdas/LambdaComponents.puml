@@ -1,0 +1,48 @@
+@startuml
+
+!include ../global-config.puml
+
+'https://plantuml.com/component-diagram
+'https://plantuml.com/skinparam
+'https://github.com/theiconic/PlantUML-skins/blob/master/src/activity/samples/NewSyntax.puml
+
+frame "Some Group" $BLUE_GREY_3 {
+  HTTP - [First Component]
+  [Another Component]
+  [Test]<<Apache>>
+}
+
+package "Jettro Group" {
+  API - [Search Service]
+  [Search Engine] #yellow
+}
+
+node "Other Groups" {
+  FTP - [Second Component]
+  [First Component] --> FTP
+}
+
+cloud {
+  [Example 1]
+}
+
+database "MySql" as DMYSQL{
+  folder "This is my folder" {
+    [Folder 3]
+  }
+  frame "Foo" {
+    [Frame 4]
+  }
+}
+
+note right of [Folder 3] {
+  A note can also
+  be on several lines
+}
+
+[Another Component] --> [Example 1]
+[Another Component] --> [Folder 3]
+[Example 1] --> [Folder 3]
+[Folder 3] --> [Frame 4]
+
+@enduml

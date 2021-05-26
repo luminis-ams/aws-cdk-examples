@@ -1,15 +1,8 @@
 ### Send POST request with json body
-POST https://o6yrsz71n0.execute-api.eu-west-1.amazonaws.com/prod/
+POST https://isgcqxalck.execute-api.eu-west-1.amazonaws.com/prod/
 Content-Type: application/json
 
 {
   "message": "Hello from API Gateway using http client"
 }
 
-<> 2021-03-22T062833.200.json
-<> 2021-03-22T062505.502.json
-<> 2021-03-22T062032.502.json
-<> 2021-03-22T061756.502.json
-<> 2021-03-22T052958.502.json
-<> 2021-03-22T052358.502.json
-<> 2021-03-22T051416.502.json

@@ -18,4 +18,22 @@ docker run --network=norconexnet -p 5601:5601 docker.elastic.co/kibana/kibana:7.
 docker run --network=norconexnet -p 8080:8080 -e norconex.action=START -e AWS_ACCESS_KEY_ID=${aws_access_key_id} -e AWS_SECRET_KEY=${aws_secret_access_key} -e norconix.collectorName=EnvironmentCollector -e norconex.elasticsearch-nodes=http://elasticsearch:9200 -e aws.use-local=false -e aws.table-prefix=JettroCrawler -e aws.profile-name=default luminis/norconex-java:latest
 
 docker run --network=norconexnet -p 8080:8080 -e norconex.action=CLEAN -e AWS_ACCESS_KEY_ID=${aws_access_key_id} -e AWS_SECRET_KEY=${aws_secret_access_key} -e norconix.collectorName=EnvironmentCollector -e norconex.elasticsearch-nodes=http://elasticsearch:9200 -e aws.use-local=false -e aws.table-prefix=JettroCrawler -e aws.profile-name=default luminis/norconex-java:latest
+
+docker run --network=norconexnet -p 8080:8080 -e norconex.action=START -e AWS_ACCESS_KEY_ID=${aws_access_key_id} -e AWS_SECRET_KEY=${aws_secret_access_key} -e norconix.collectorName=EnvironmentCollector -e norconex.elasticsearch-nodes=https://search-demo-search-kog26hrflbperlmbeubxx37xgq.eu-west-1.es.amazonaws.com -e aws.use-local=false -e aws.table-prefix=ElasticCrawler -e aws.profile-name=default luminis/norconex-java:latest
+```
+
+
+```shell
+docker run 
+--network=norconexnet 
+-p 8080:8080 
+-e norconex.action=START 
+-e AWS_ACCESS_KEY_ID=${aws_access_key_id} 
+-e AWS_SECRET_KEY=${aws_secret_access_key} 
+-e norconex.collectorName=EnvironmentCollector 
+-e norconex.elasticsearch-nodes=https://search-demo-search-kog26hrflbperlmbeubxx37xgq.eu-west-1.es.amazonaws.com 
+-e aws.use-local=false 
+-e aws.table-prefix=ElasticCrawler 
+-e aws.profile-name=default 
+luminis/norconex-java:latest
 ```
