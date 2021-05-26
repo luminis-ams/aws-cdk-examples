@@ -1,2 +1,4 @@
 .idea
 aws-cfcdn-s3/aws-cfcdn-s3.iml
+**/*.iml
+**/.DS_Store
