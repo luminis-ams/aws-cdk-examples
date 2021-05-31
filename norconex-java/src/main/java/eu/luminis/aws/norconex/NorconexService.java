@@ -1,7 +1,5 @@
 package eu.luminis.aws.norconex;
 
-import com.norconex.collector.core.CollectorEvent;
-import com.norconex.collector.core.CollectorLifeCycleListener;
 import com.norconex.collector.core.crawler.CrawlerEvent;
 import com.norconex.collector.core.crawler.CrawlerLifeCycleListener;
 import com.norconex.collector.core.monitor.CrawlerMonitor;
@@ -10,10 +8,10 @@ import com.norconex.collector.http.HttpCollectorConfig;
 import com.norconex.collector.http.crawler.HttpCrawlerConfig;
 import com.norconex.collector.http.crawler.URLCrawlScopeStrategy;
 import com.norconex.collector.http.delay.impl.GenericDelayResolver;
-import com.norconex.committer.elasticsearch.ElasticsearchCommitter;
 import com.norconex.commons.lang.map.PropertySetter;
 import com.norconex.importer.ImporterConfig;
 import com.norconex.importer.handler.tagger.impl.DOMTagger;
+import eu.luminis.committer.opensearch.OpenSearchCommitter;
 import eu.luminis.norconex.datastore.dynamodb.DynamoDBProperties;
 import eu.luminis.norconex.datastore.dynamodb.DynamoDBRepository;
 import eu.luminis.norconex.datastore.dynamodb.DynamoDBTableUtil;
@@ -106,7 +104,7 @@ public class NorconexService {
         crawlerConfig.setUrlCrawlScopeStrategy(createCrawlerDomainSrategy());
         crawlerConfig.setMaxDepth(norconexProperties.getMaxDepth());
         crawlerConfig.setDataStoreEngine(new DynamoDataStoreEngine(dynamoDBProperties, dynamoDbClient));
-        crawlerConfig.setCommitters(createElasticsearchCommitter());
+        crawlerConfig.setCommitters(createOpenSearchCommitter());
         crawlerConfig.setDelayResolver(createdelayResolver());
 
         HttpCollectorConfig collectorConfig = new HttpCollectorConfig();
@@ -174,11 +172,11 @@ public class NorconexService {
     }
 
     @NotNull
-    private ElasticsearchCommitter createElasticsearchCommitter() {
-        ElasticsearchCommitter elasticsearchCommitter = new ElasticsearchCommitter();
-        elasticsearchCommitter.setNodes(norconexProperties.getElasticsearchNodes());
-        elasticsearchCommitter.setIndexName(norconexProperties.getElasticsearchIndexName());
-        return elasticsearchCommitter;
+    private OpenSearchCommitter createOpenSearchCommitter() {
+        OpenSearchCommitter openSearchCommitter = new OpenSearchCommitter();
+        openSearchCommitter.setNodes(norconexProperties.getElasticsearchNodes());
+        openSearchCommitter.setIndexName(norconexProperties.getElasticsearchIndexName());
+        return openSearchCommitter;
     }
 
     @NotNull
