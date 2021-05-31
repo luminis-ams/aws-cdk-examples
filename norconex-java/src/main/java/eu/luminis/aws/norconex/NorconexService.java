@@ -1,5 +1,7 @@
 package eu.luminis.aws.norconex;
 
+import com.norconex.collector.core.CollectorEvent;
+import com.norconex.collector.core.CollectorLifeCycleListener;
 import com.norconex.collector.core.crawler.CrawlerEvent;
 import com.norconex.collector.core.crawler.CrawlerLifeCycleListener;
 import com.norconex.collector.core.monitor.CrawlerMonitor;
@@ -86,6 +88,9 @@ public class NorconexService {
             case CLEAN:
                 this.clean();
                 break;
+            case CLEAN_START:
+                this.doClean();
+                this.start();
             default:
                 LOGGER.info("Action '{}' is unrecognized", norconexProperties.getAction());
         }
@@ -122,13 +127,13 @@ public class NorconexService {
         collectorConfig.addEventListeners(createCrawlerLifeCycleListener());
 
         // Make sure we stop when the run of the collector is done
-//        collectorConfig.addEventListeners(new CollectorLifeCycleListener() {
-//            @Override
-//            protected void onCollectorRunEnd(CollectorEvent event) {
-//                int exit = SpringApplication.exit(context, () -> -1);
-//                System.exit(exit);
-//            }
-//        });
+        collectorConfig.addEventListeners(new CollectorLifeCycleListener() {
+            @Override
+            protected void onCollectorRunEnd(CollectorEvent event) {
+                int exit = SpringApplication.exit(context, () -> -1);
+                System.exit(exit);
+            }
+        });
 
         this.collector = new HttpCollector(collectorConfig);
         this.collector.start();
@@ -142,8 +147,7 @@ public class NorconexService {
     }
 
     public void clean() {
-        LOGGER.warn("About to clean Everything in DynamoDB");
-        DynamoDBTableUtil.cleanAllTables(dynamoDbClient, dynamoDBProperties);
+        doClean();
         int exit = SpringApplication.exit(context, () -> -1);
         System.exit(exit);
     }
@@ -153,6 +157,11 @@ public class NorconexService {
         if (null != this.collector) {
             this.collector.stop();
         }
+    }
+
+    private void doClean() {
+        LOGGER.warn("About to clean Everything in DynamoDB");
+        DynamoDBTableUtil.cleanAllTables(dynamoDbClient, dynamoDBProperties);
     }
 
     @NotNull
