@@ -110,4 +110,5 @@ public class NorconexProperties {
             this.scope = scope;
         }
     }
+
 }

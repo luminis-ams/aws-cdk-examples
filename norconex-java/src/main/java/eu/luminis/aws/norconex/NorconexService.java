@@ -1,7 +1,5 @@
 package eu.luminis.aws.norconex;
 
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
-import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.norconex.collector.core.CollectorEvent;
 import com.norconex.collector.core.CollectorLifeCycleListener;
 import com.norconex.collector.core.crawler.CrawlerEvent;
@@ -28,6 +26,9 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.sns.SnsClient;
 
 import javax.annotation.PreDestroy;
 import java.util.Arrays;
@@ -38,7 +39,9 @@ public class NorconexService {
     private final NorconexProperties norconexProperties;
     private final DynamoDBProperties dynamoDBProperties;
     private final DynamoDBRepository dynamoDBRepository;
-    private final AmazonDynamoDB client;
+    private final DynamoDbClient dynamoDbClient;
+    private final SnsProperties snsProperties;
+    private final SnsClient snsClient;
 
     private HttpCollector collector;
 
@@ -48,12 +51,16 @@ public class NorconexService {
     public NorconexService(NorconexProperties norconexProperties,
                            DynamoDBProperties dynamoDBProperties,
                            DynamoDBRepository dynamoDBRepository,
-                           AmazonDynamoDB client,
+                           DynamoDbClient dynamoDbClient,
+                           SnsProperties snsProperties,
+                           SnsClient snsClient,
                            ApplicationContext context) {
         this.norconexProperties = norconexProperties;
         this.dynamoDBProperties = dynamoDBProperties;
         this.dynamoDBRepository = dynamoDBRepository;
-        this.client = client;
+        this.snsProperties = snsProperties;
+        this.dynamoDbClient = dynamoDbClient;
+        this.snsClient = snsClient;
         this.context = context;
 
         if (LOGGER.isInfoEnabled()) {
@@ -63,11 +70,13 @@ public class NorconexService {
             LOGGER.info("Norconex Max depth: {}", norconexProperties.getMaxDepth());
             LOGGER.info("Norconex Start Urls: {}", norconexProperties.getStartUrls());
 
-            LOGGER.info("Local URI: {}", dynamoDBProperties.getLocalUri());
-            LOGGER.info("Use local: {}", dynamoDBProperties.getUseLocal());
-            LOGGER.info("Profile name: {}", dynamoDBProperties.getProfileName());
-            LOGGER.info("Region: {}", dynamoDBProperties.getRegion());
-            LOGGER.info("Table prefix: {}", dynamoDBProperties.getTablePrefix());
+            LOGGER.info("Dynamo Local URI: {}", dynamoDBProperties.getLocalUri());
+            LOGGER.info("Dynamo Use local: {}", dynamoDBProperties.getUseLocal());
+            LOGGER.info("Dynamo Profile name: {}", dynamoDBProperties.getProfileName());
+            LOGGER.info("Dynamo Region: {}", dynamoDBProperties.getRegion());
+            LOGGER.info("Dynamo Table prefix: {}", dynamoDBProperties.getTablePrefix());
+
+            LOGGER.info("SNS Topic name: {}", snsProperties.getStatusUpdateTopicName());
         }
     }
 
@@ -96,7 +105,7 @@ public class NorconexService {
         crawlerConfig.setImporterConfig(createImporterConfiguration());
         crawlerConfig.setUrlCrawlScopeStrategy(createCrawlerDomainSrategy());
         crawlerConfig.setMaxDepth(norconexProperties.getMaxDepth());
-        crawlerConfig.setDataStoreEngine(new DynamoDataStoreEngine(dynamoDBProperties, client));
+        crawlerConfig.setDataStoreEngine(new DynamoDataStoreEngine(dynamoDBProperties, dynamoDbClient));
         crawlerConfig.setCommitters(createElasticsearchCommitter());
         crawlerConfig.setDelayResolver(createdelayResolver());
 
@@ -104,16 +113,24 @@ public class NorconexService {
         collectorConfig.setId(norconexProperties.getName() + "Collector");
         collectorConfig.setCrawlerConfigs(crawlerConfig);
 
+        String statusUpdateTopicName = this.snsProperties.getStatusUpdateTopicName();
+        if (StringUtils.hasLength(statusUpdateTopicName)) {
+            LOGGER.info("Use SNS Topic {} to send lifecycle events", statusUpdateTopicName);
+            collectorConfig.addEventListeners(createCrawlerSNSNotificationListener(this.snsProperties));
+        } else {
+            LOGGER.info("No SNS Topic is specified");
+        }
+
         collectorConfig.addEventListeners(createCrawlerLifeCycleListener());
 
         // Make sure we stop when the run of the collector is done
-        collectorConfig.addEventListeners(new CollectorLifeCycleListener() {
-            @Override
-            protected void onCollectorRunEnd(CollectorEvent event) {
-                int exit = SpringApplication.exit(context, () -> -1);
-                System.exit(exit);
-            }
-        });
+//        collectorConfig.addEventListeners(new CollectorLifeCycleListener() {
+//            @Override
+//            protected void onCollectorRunEnd(CollectorEvent event) {
+//                int exit = SpringApplication.exit(context, () -> -1);
+//                System.exit(exit);
+//            }
+//        });
 
         this.collector = new HttpCollector(collectorConfig);
         this.collector.start();
@@ -127,7 +144,8 @@ public class NorconexService {
     }
 
     public void clean() {
-        DynamoDBTableUtil.cleanAllTables(new DynamoDB(client),dynamoDBProperties);
+        LOGGER.warn("About to clean Everything in DynamoDB");
+        DynamoDBTableUtil.cleanAllTables(dynamoDbClient, dynamoDBProperties);
         int exit = SpringApplication.exit(context, () -> -1);
         System.exit(exit);
     }
@@ -149,6 +167,10 @@ public class NorconexService {
                 dynamoDBRepository.storeCrawlerStats(norconexProperties.getName(), monitor.getEventCounts());
             }
         };
+    }
+
+    private CrawlerLifeCycleListener createCrawlerSNSNotificationListener(SnsProperties snsProperties) {
+        return new SnsTopicCrawlerLifeCycleListener(snsClient, snsProperties);
     }
 
     @NotNull

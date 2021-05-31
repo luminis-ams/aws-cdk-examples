@@ -30,7 +30,7 @@ export class AwsLambdasStack extends cdk.Stack {
             displayName: 'Lambda SNS Topic to send email',
         });
 
-        snsTopic.addSubscription(new subs.EmailSubscription("jettro@coenradie.com"));
+        // snsTopic.addSubscription(new subs.EmailSubscription("jettro@coenradie.com"));
 
         const sendToSNSLambda = new lambda.Function(this, 'LambdaDemo_SendToSNSLambda', {
             runtime: lambda.Runtime.NODEJS_12_X,
