@@ -4,6 +4,7 @@ import com.norconex.collector.core.crawler.CrawlerEvent;
 import com.norconex.collector.core.crawler.CrawlerLifeCycleListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.util.StringUtils;
 import software.amazon.awssdk.services.sns.SnsClient;
 import software.amazon.awssdk.services.sns.model.*;
@@ -15,14 +16,16 @@ import java.util.Optional;
 public class SnsTopicCrawlerLifeCycleListener extends CrawlerLifeCycleListener {
     private static final Logger LOGGER = LoggerFactory.getLogger(SnsTopicCrawlerLifeCycleListener.class);
 
-    private String snsTopicName;
-    private SnsClient snsClient;
-    private String topicArn;
+    private final String messageGroupId;
+    private final String snsTopicName;
+    private final SnsClient snsClient;
+    private final String topicArn;
 
-    public SnsTopicCrawlerLifeCycleListener(SnsClient snsClient, SnsProperties snsProperties) {
+    public SnsTopicCrawlerLifeCycleListener(SnsClient snsClient, SnsProperties snsProperties, String messageGroupId) {
         super();
         this.snsTopicName = snsProperties.getStatusUpdateTopicName();
         this.snsClient = snsClient;
+        this.messageGroupId = messageGroupId;
         this.topicArn = findSnsTopicArn();
     }
 
@@ -72,12 +75,13 @@ public class SnsTopicCrawlerLifeCycleListener extends CrawlerLifeCycleListener {
     }
 
     private void publishToTopic(String subject, String originalMessage) {
-        String message = StringUtils.hasLength(originalMessage)? originalMessage: subject;
+        String message = StringUtils.hasLength(originalMessage) ? originalMessage : subject;
         try {
             PublishRequest request = PublishRequest.builder()
-                    .message(message)
-                    .subject(subject)
                     .topicArn(this.topicArn)
+                    .subject(subject)
+                    .message(message)
+                    .messageGroupId(messageGroupId)
                     .build();
 
             PublishResponse result = snsClient.publish(request);

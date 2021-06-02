@@ -177,7 +177,7 @@ public class NorconexService {
     }
 
     private CrawlerLifeCycleListener createCrawlerSNSNotificationListener(SnsProperties snsProperties) {
-        return new SnsTopicCrawlerLifeCycleListener(snsClient, snsProperties);
+        return new SnsTopicCrawlerLifeCycleListener(snsClient, snsProperties, norconexProperties.getElasticsearchIndexName());
     }
 
     @NotNull
