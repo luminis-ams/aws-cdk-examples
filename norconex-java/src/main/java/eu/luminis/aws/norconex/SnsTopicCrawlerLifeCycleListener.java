@@ -90,7 +90,7 @@ public class SnsTopicCrawlerLifeCycleListener extends CrawlerLifeCycleListener {
     private String findSnsTopicArn() {
         List<Topic> topics = listSNSTopics();
         Optional<Topic> foundTopic = topics.stream()
-                .filter(topic -> topic.topicArn().endsWith(this.snsTopicName))
+                .filter(topic -> topic.topicArn().contains(this.snsTopicName))
                 .findFirst();
 
         if (foundTopic.isPresent()) {
