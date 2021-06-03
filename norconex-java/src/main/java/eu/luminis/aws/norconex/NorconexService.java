@@ -161,6 +161,11 @@ public class NorconexService {
 
     private void doPublishCrawlerStats(CollectorStatus status, Collector collector) {
         if (collector == null || collector.getCrawlers() == null) {
+            this.snsPublisher.publishToTopic(norconexProperties.getName() + "CRAWLER_STATS",
+                    new StatusObject(status,
+                            norconexProperties.getElasticsearchIndexName(),
+                            LocalDateTime.now(),
+                            new HashMap<>()));
             return;
         }
         collector.getCrawlers().forEach(crawler -> {
