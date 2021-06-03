@@ -29,8 +29,7 @@ import javax.annotation.PreDestroy;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 
-import static eu.luminis.aws.norconex.CollectorStatus.FINISHED;
-import static eu.luminis.aws.norconex.CollectorStatus.RUNNING;
+import static eu.luminis.aws.norconex.CollectorStatus.*;
 
 @Service
 public class NorconexService {
@@ -120,17 +119,12 @@ public class NorconexService {
         collectorConfig.addEventListeners(new CollectorLifeCycleListener() {
             @Override
             protected void onCollectorRunBegin(CollectorEvent event) {
-                new StatusObject(RUNNING,
-                        norconexProperties.getElasticsearchIndexName(),
-                        LocalDateTime.now(), new HashMap<>()
-                        );
-
-                snsPublisher.publishToTopic("START", "START: " + norconexProperties.getElasticsearchIndexName());
+                doPublishCrawlerStats(STARTING, event.getSource());
             }
 
             @Override
             protected void onCollectorRunEnd(CollectorEvent event) {
-                doPublishCrawlerStats(FINISHED, collector);
+                doPublishCrawlerStats(FINISHED, event.getSource());
                 int exit = SpringApplication.exit(context, () -> -1);
                 System.exit(exit);
             }
@@ -138,13 +132,6 @@ public class NorconexService {
 
         this.collector = new HttpCollector(collectorConfig);
         this.collector.start();
-    }
-
-    @NotNull
-    private GenericDelayResolver createDelayResolver() {
-        GenericDelayResolver genericDelayResolver = new GenericDelayResolver();
-        genericDelayResolver.setDefaultDelay(norconexProperties.getDelay().getDefaultDelay());
-        return genericDelayResolver;
     }
 
     public void clean() {
@@ -156,6 +143,13 @@ public class NorconexService {
     @Scheduled(fixedDelay = 10000)
     public void logMonitoringInfo() {
         doPublishCrawlerStats(RUNNING, this.collector);
+    }
+
+    @NotNull
+    private GenericDelayResolver createDelayResolver() {
+        GenericDelayResolver genericDelayResolver = new GenericDelayResolver();
+        genericDelayResolver.setDefaultDelay(norconexProperties.getDelay().getDefaultDelay());
+        return genericDelayResolver;
     }
 
     @PreDestroy

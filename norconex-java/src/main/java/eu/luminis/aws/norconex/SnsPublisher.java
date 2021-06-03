@@ -1,6 +1,7 @@
 package eu.luminis.aws.norconex;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,9 +10,9 @@ import org.springframework.util.StringUtils;
 import software.amazon.awssdk.services.sns.SnsClient;
 import software.amazon.awssdk.services.sns.model.*;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 @Component
@@ -22,7 +23,8 @@ public class SnsPublisher {
     private final String snsTopicName;
     private final SnsClient snsClient;
     private final String topicArn;
-    private final Gson gson = new Gson();
+    private final Gson gson = new GsonBuilder()
+            .registerTypeAdapter(LocalDateTime.class,new LocalDateAdapter()).create();
 
     @Autowired
     public SnsPublisher(SnsClient snsClient, SnsProperties snsProperties) {
