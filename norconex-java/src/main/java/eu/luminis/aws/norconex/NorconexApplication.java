@@ -6,11 +6,13 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(
         exclude = {MongoAutoConfiguration.class}
 )
 @EnableConfigurationProperties
+@EnableScheduling
 @ComponentScan({"eu.luminis.aws.norconex", "eu.luminis.norconex.datastore.dynamodb"})
 public class NorconexApplication implements CommandLineRunner {
 

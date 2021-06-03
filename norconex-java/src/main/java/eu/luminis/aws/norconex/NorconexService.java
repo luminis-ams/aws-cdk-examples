@@ -1,21 +1,16 @@
 package eu.luminis.aws.norconex;
 
+import com.norconex.collector.core.Collector;
 import com.norconex.collector.core.CollectorEvent;
 import com.norconex.collector.core.CollectorLifeCycleListener;
-import com.norconex.collector.core.crawler.CrawlerEvent;
-import com.norconex.collector.core.crawler.CrawlerLifeCycleListener;
-import com.norconex.collector.core.monitor.CrawlerMonitor;
 import com.norconex.collector.http.HttpCollector;
 import com.norconex.collector.http.HttpCollectorConfig;
 import com.norconex.collector.http.crawler.HttpCrawlerConfig;
 import com.norconex.collector.http.crawler.URLCrawlScopeStrategy;
 import com.norconex.collector.http.delay.impl.GenericDelayResolver;
-import com.norconex.commons.lang.map.PropertySetter;
 import com.norconex.importer.ImporterConfig;
-import com.norconex.importer.handler.tagger.impl.DOMTagger;
 import eu.luminis.committer.opensearch.OpenSearchCommitter;
 import eu.luminis.norconex.datastore.dynamodb.DynamoDBProperties;
-import eu.luminis.norconex.datastore.dynamodb.DynamoDBRepository;
 import eu.luminis.norconex.datastore.dynamodb.DynamoDBTableUtil;
 import eu.luminis.norconex.datastore.dynamodb.DynamoDataStoreEngine;
 import org.jetbrains.annotations.NotNull;
@@ -24,24 +19,27 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.context.ApplicationContext;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
-import org.springframework.util.StringUtils;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
-import software.amazon.awssdk.services.sns.SnsClient;
 
 import javax.annotation.PreDestroy;
-import java.util.Arrays;
+
+import java.time.LocalDateTime;
+import java.util.HashMap;
+
+import static eu.luminis.aws.norconex.CollectorStatus.FINISHED;
+import static eu.luminis.aws.norconex.CollectorStatus.RUNNING;
 
 @Service
 public class NorconexService {
     private static final Logger LOGGER = LoggerFactory.getLogger(NorconexService.class);
     private final NorconexProperties norconexProperties;
     private final DynamoDBProperties dynamoDBProperties;
-    private final DynamoDBRepository dynamoDBRepository;
     private final DynamoDbClient dynamoDbClient;
-    private final SnsProperties snsProperties;
-    private final SnsClient snsClient;
+    private final SnsPublisher snsPublisher;
+    private final ImporterConfig importerConfig;
 
     private HttpCollector collector;
 
@@ -50,17 +48,16 @@ public class NorconexService {
     @Autowired
     public NorconexService(NorconexProperties norconexProperties,
                            DynamoDBProperties dynamoDBProperties,
-                           DynamoDBRepository dynamoDBRepository,
                            DynamoDbClient dynamoDbClient,
                            SnsProperties snsProperties,
-                           SnsClient snsClient,
+                           SnsPublisher snsPublisher,
+                           ImporterConfig importerConfig,
                            ApplicationContext context) {
         this.norconexProperties = norconexProperties;
         this.dynamoDBProperties = dynamoDBProperties;
-        this.dynamoDBRepository = dynamoDBRepository;
-        this.snsProperties = snsProperties;
         this.dynamoDbClient = dynamoDbClient;
-        this.snsClient = snsClient;
+        this.snsPublisher = snsPublisher;
+        this.importerConfig = importerConfig;
         this.context = context;
 
         if (LOGGER.isInfoEnabled()) {
@@ -77,6 +74,8 @@ public class NorconexService {
             LOGGER.info("Dynamo Table prefix: {}", dynamoDBProperties.getTablePrefix());
 
             LOGGER.info("SNS Topic name: {}", snsProperties.getStatusUpdateTopicName());
+            LOGGER.info("SNS Message group: {}", snsProperties.getMessageGroup());
+            LOGGER.info("SNS Region: {}", snsProperties.getRegion());
         }
     }
 
@@ -91,6 +90,7 @@ public class NorconexService {
             case CLEAN_START:
                 this.doClean();
                 this.start();
+                break;
             default:
                 LOGGER.info("Action '{}' is unrecognized", norconexProperties.getAction());
         }
@@ -105,31 +105,32 @@ public class NorconexService {
         if (!CollectionUtils.isEmpty(norconexProperties.getSitemapUrls())) {
             crawlerConfig.setStartSitemapURLs();
         }
-        crawlerConfig.setImporterConfig(createImporterConfiguration());
+        crawlerConfig.setImporterConfig(this.importerConfig);
         crawlerConfig.setUrlCrawlScopeStrategy(createCrawlerDomainSrategy());
         crawlerConfig.setMaxDepth(norconexProperties.getMaxDepth());
         crawlerConfig.setDataStoreEngine(new DynamoDataStoreEngine(dynamoDBProperties, dynamoDbClient));
         crawlerConfig.setCommitters(createOpenSearchCommitter());
-        crawlerConfig.setDelayResolver(createdelayResolver());
+        crawlerConfig.setDelayResolver(createDelayResolver());
 
         HttpCollectorConfig collectorConfig = new HttpCollectorConfig();
         collectorConfig.setId(norconexProperties.getName() + "Collector");
         collectorConfig.setCrawlerConfigs(crawlerConfig);
 
-        String statusUpdateTopicName = this.snsProperties.getStatusUpdateTopicName();
-        if (StringUtils.hasLength(statusUpdateTopicName)) {
-            LOGGER.info("Use SNS Topic {} to send lifecycle events", statusUpdateTopicName);
-            collectorConfig.addEventListeners(createCrawlerSNSNotificationListener(this.snsProperties));
-        } else {
-            LOGGER.info("No SNS Topic is specified");
-        }
-
-        collectorConfig.addEventListeners(createCrawlerLifeCycleListener());
-
         // Make sure we stop when the run of the collector is done
         collectorConfig.addEventListeners(new CollectorLifeCycleListener() {
             @Override
+            protected void onCollectorRunBegin(CollectorEvent event) {
+                new StatusObject(RUNNING,
+                        norconexProperties.getElasticsearchIndexName(),
+                        LocalDateTime.now(), new HashMap<>()
+                        );
+
+                snsPublisher.publishToTopic("START", "START: " + norconexProperties.getElasticsearchIndexName());
+            }
+
+            @Override
             protected void onCollectorRunEnd(CollectorEvent event) {
+                doPublishCrawlerStats(FINISHED, collector);
                 int exit = SpringApplication.exit(context, () -> -1);
                 System.exit(exit);
             }
@@ -140,9 +141,9 @@ public class NorconexService {
     }
 
     @NotNull
-    private GenericDelayResolver createdelayResolver() {
+    private GenericDelayResolver createDelayResolver() {
         GenericDelayResolver genericDelayResolver = new GenericDelayResolver();
-        genericDelayResolver.setDefaultDelay(2000);
+        genericDelayResolver.setDefaultDelay(norconexProperties.getDelay().getDefaultDelay());
         return genericDelayResolver;
     }
 
@@ -152,6 +153,11 @@ public class NorconexService {
         System.exit(exit);
     }
 
+    @Scheduled(fixedDelay = 10000)
+    public void logMonitoringInfo() {
+        doPublishCrawlerStats(RUNNING, this.collector);
+    }
+
     @PreDestroy
     public void destroy() {
         if (null != this.collector) {
@@ -159,25 +165,24 @@ public class NorconexService {
         }
     }
 
+    private void doPublishCrawlerStats(CollectorStatus status, Collector collector) {
+        if (collector == null || collector.getCrawlers() == null) {
+            return;
+        }
+        collector.getCrawlers().forEach(crawler -> {
+            if (crawler.getMonitor() != null) {
+                this.snsPublisher.publishToTopic(norconexProperties.getName() + "CRAWLER_STATS",
+                        new StatusObject(status,
+                                norconexProperties.getElasticsearchIndexName(),
+                                LocalDateTime.now(),
+                                crawler.getMonitor().getEventCounts()));
+            }
+        });
+    }
+
     private void doClean() {
         LOGGER.warn("About to clean Everything in DynamoDB");
         DynamoDBTableUtil.cleanAllTables(dynamoDbClient, dynamoDBProperties);
-    }
-
-    @NotNull
-    private CrawlerLifeCycleListener createCrawlerLifeCycleListener() {
-        return new CrawlerLifeCycleListener() {
-
-            @Override
-            protected void onCrawlerShutdown(CrawlerEvent event) {
-                CrawlerMonitor monitor = event.getSource().getMonitor();
-                dynamoDBRepository.storeCrawlerStats(norconexProperties.getName(), monitor.getEventCounts());
-            }
-        };
-    }
-
-    private CrawlerLifeCycleListener createCrawlerSNSNotificationListener(SnsProperties snsProperties) {
-        return new SnsTopicCrawlerLifeCycleListener(snsClient, snsProperties, norconexProperties.getElasticsearchIndexName());
     }
 
     @NotNull
@@ -193,14 +198,5 @@ public class NorconexService {
         URLCrawlScopeStrategy strategy = new URLCrawlScopeStrategy();
         strategy.setStayOnDomain(true);
         return strategy;
-    }
-
-    @NotNull
-    private ImporterConfig createImporterConfiguration() {
-        ImporterConfig importerConfig = new ImporterConfig();
-        DOMTagger domTagger = new DOMTagger();
-        domTagger.addDOMExtractDetails(new DOMTagger.DOMExtractDetails("div#content", "content_2", PropertySetter.REPLACE));
-        importerConfig.setPreParseHandlers(Arrays.asList(domTagger));
-        return importerConfig;
     }
 }

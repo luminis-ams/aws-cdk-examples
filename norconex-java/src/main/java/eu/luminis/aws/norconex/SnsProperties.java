@@ -16,6 +16,11 @@ public class SnsProperties {
      */
     private String region = "eu-west-1";
 
+    /**
+     * Use the message group when sending messages to the topic
+     */
+    private String messageGroup;
+
     public String getStatusUpdateTopicName() {
         return statusUpdateTopicName;
     }
@@ -30,5 +35,13 @@ public class SnsProperties {
 
     public void setRegion(String region) {
         this.region = region;
+    }
+
+    public String getMessageGroup() {
+        return messageGroup;
+    }
+
+    public void setMessageGroup(String messageGroup) {
+        this.messageGroup = messageGroup;
     }
 }
